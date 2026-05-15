@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .config import load_config
+from .config import ToolSlimmerConfig, load_config
 from .index_store import IndexStore
 from .selector import ToolSelector
 
@@ -25,6 +25,10 @@ def tool_slimmer_status(args: dict, **kwargs: Any) -> str:
 def tool_slimmer_select(args: dict, **kwargs: Any) -> str:
     try:
         cfg = load_config(args.get("config_path"))
+        if args.get("mode") is not None:
+            cfg = ToolSlimmerConfig.from_mapping(
+                {**cfg.__dict__, "mode": args.get("mode"), "anthropic": cfg.anthropic.__dict__}
+            )
         schemas = args.get("schemas") or kwargs.get("schemas") or []
         query = args.get("query") or args.get("text") or ""
         result = ToolSelector(cfg).select(query, schemas)

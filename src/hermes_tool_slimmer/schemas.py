@@ -12,6 +12,7 @@ SELECT_SCHEMA = {
         "properties": {
             "query": {"type": "string"},
             "schemas": {"type": "array", "items": {"type": "object"}},
+            "mode": {"type": "string", "enum": ["eager", "keyword", "hybrid", "anthropic_tool_search"]},
         },
         "required": ["query"],
     },

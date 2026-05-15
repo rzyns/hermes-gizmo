@@ -21,6 +21,26 @@ def test_plugin_handlers_return_json_strings(monkeypatch, tmp_path):
     assert json.loads(slash)["ok"] is True
 
 
+def test_tool_slimmer_select_honors_mode_override(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    result = json.loads(
+        tool_slimmer_select(
+            {
+                "query": "search",
+                "mode": "eager",
+                "schemas": [
+                    {"name": "read_file", "description": "Read"},
+                    {"name": "search_files", "description": "Search"},
+                ],
+            }
+        )
+    )
+
+    assert result["ok"] is True
+    assert result["mode"] == "eager"
+    assert result["selected"] == ["read_file", "search_files"]
+
+
 def test_integration_contract_returns_none_when_disabled():
     out = select_tool_schemas_callback("read", [], [{"name": "read_file"}], "model", "platform", config=ToolSlimmerConfig(enabled=False))
     assert out is None

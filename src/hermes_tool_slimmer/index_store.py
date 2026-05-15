@@ -29,6 +29,7 @@ class IndexStore:
             {"name": tool_name(schema), "toolset": tool_toolset(schema), "description": tool_description(schema), "parameters": _schema_parameters(schema)}
             for schema in schemas
         ]
+        normalized.sort(key=lambda item: json.dumps(item, sort_keys=True, default=str, separators=(",", ":")))
         payload = json.dumps(normalized, sort_keys=True, default=str, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 

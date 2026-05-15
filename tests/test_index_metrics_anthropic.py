@@ -25,6 +25,16 @@ def test_index_checksum_tolerates_null_function_schema():
     assert isinstance(checksum, str)
 
 
+def test_index_checksum_is_order_independent():
+    schemas = [
+        {"name": "read_file", "description": "Read"},
+        {"name": "search_files", "description": "Search"},
+        {"name": "terminal", "description": "Run commands"},
+    ]
+
+    assert IndexStore.checksum(schemas) == IndexStore.checksum(list(reversed(schemas)))
+
+
 def test_metrics_estimate_reduction():
     original = [{"name": "a", "description": "x" * 100}, {"name": "b", "description": "y" * 100}]
     selected = [original[0]]
