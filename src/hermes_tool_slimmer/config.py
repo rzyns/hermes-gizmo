@@ -71,7 +71,7 @@ def config_path() -> Path:
 
 def load_config(path: str | Path | None = None) -> ToolSlimmerConfig:
     target = Path(path).expanduser() if path else config_path()
-    if not target.exists():
+    if not target.is_file():
         return ToolSlimmerConfig()
     data = yaml.safe_load(target.read_text()) or {}
     section = data.get("tool_slimmer", data if "mode" in data else {})

@@ -6,7 +6,7 @@ import pytest
 
 from hermes_tool_slimmer.commands import handle_slash_command
 from hermes_tool_slimmer.config import ToolSlimmerConfig
-from hermes_tool_slimmer.cli import _tool_names
+from hermes_tool_slimmer.cli import _load_schemas, _tool_names
 from hermes_tool_slimmer.integration import maybe_register_selector_hook, select_tool_schemas_callback
 from hermes_tool_slimmer.metrics import read_decisions, summarize_decisions
 from hermes_tool_slimmer.index_store import IndexStore
@@ -62,6 +62,36 @@ def test_tool_slimmer_select_falls_back_to_index_when_schemas_missing(monkeypatc
 
 def test_cli_tool_names_tolerates_null_function_wrapper():
     assert _tool_names([{"function": None}]) == {""}
+
+
+def test_cli_load_schemas_handles_missing_path(tmp_path):
+    assert _load_schemas(str(tmp_path / "missing.yaml")) == []
+
+
+def test_cli_load_schemas_accepts_tool_index_documents(tmp_path):
+    path = tmp_path / "tool_index.json"
+    path.write_text(
+        json.dumps(
+            {
+                "documents": [
+                    {
+                        "name": "execute_code",
+                        "toolset": "native",
+                        "tokens": ["execute", "code"],
+                        "text": "execute_code\nRun Python scripts",
+                    }
+                ]
+            }
+        )
+    )
+
+    assert _load_schemas(str(path)) == [
+        {
+            "name": "execute_code",
+            "toolset": "native",
+            "description": "execute_code\nRun Python scripts",
+        }
+    ]
 
 
 def test_cli_analyze_config_and_eval(tmp_path, capsys):

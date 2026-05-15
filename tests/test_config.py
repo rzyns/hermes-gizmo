@@ -58,3 +58,8 @@ def test_load_config_reads_tool_slimmer_section(tmp_path):
     cfg = load_config(path)
     assert cfg.mode == "eager"
     assert cfg.top_k == 0
+
+
+def test_load_config_directory_path_returns_defaults(tmp_path):
+    cfg = load_config(tmp_path)
+    assert cfg.mode == "keyword"

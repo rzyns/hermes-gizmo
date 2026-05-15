@@ -20,9 +20,31 @@ from .selector import ToolSelector
 def _load_schemas(path: str | None) -> list[dict[str, Any]]:
     if not path:
         return []
-    data = yaml.safe_load(Path(path).read_text())
+    target = Path(path).expanduser()
+    if not target.is_file():
+        return []
+    data = yaml.safe_load(target.read_text())
     if isinstance(data, dict):
-        return data.get("tools") or data.get("schemas") or []
+        schemas = data.get("tools") or data.get("schemas")
+        if isinstance(schemas, list):
+            return schemas
+        documents = data.get("documents")
+        if isinstance(documents, list):
+            out = []
+            for doc in documents:
+                if not isinstance(doc, dict) or not doc.get("name"):
+                    continue
+                tokens = doc.get("tokens")
+                token_text = " ".join(str(token) for token in tokens) if isinstance(tokens, list) else ""
+                out.append(
+                    {
+                        "name": doc.get("name"),
+                        "toolset": doc.get("toolset"),
+                        "description": doc.get("text") or token_text,
+                    }
+                )
+            return out
+        return []
     return data or []
 
 
