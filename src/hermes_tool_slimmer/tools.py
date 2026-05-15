@@ -12,6 +12,51 @@ def _json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True)
 
 
+def _live_hermes_schemas() -> list[dict[str, Any]]:
+    try:
+        from model_tools import get_tool_definitions  # type: ignore[import-not-found]
+    except Exception:
+        return []
+    try:
+        schemas = get_tool_definitions(None, None, True)
+    except TypeError:
+        schemas = get_tool_definitions()  # type: ignore[call-arg]
+    except Exception:
+        return []
+    return schemas if isinstance(schemas, list) else []
+
+
+def _indexed_schemas() -> list[dict[str, Any]]:
+    index = IndexStore().load() or {}
+    docs_raw = index.get("documents")
+    docs: list[Any] = docs_raw if isinstance(docs_raw, list) else []
+    schemas = []
+    for doc in docs:
+        if not isinstance(doc, dict) or not doc.get("name"):
+            continue
+        tokens = doc.get("tokens")
+        token_text = " ".join(str(token) for token in tokens) if isinstance(tokens, list) else ""
+        schemas.append({"name": doc.get("name"), "toolset": doc.get("toolset"), "description": doc.get("text") or token_text})
+    return schemas
+
+
+def _resolve_schemas(args: dict[str, Any], kwargs: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
+    provided = args.get("schemas") or kwargs.get("schemas")
+    if isinstance(provided, list) and provided:
+        return provided, "provided"
+    live = _live_hermes_schemas()
+    if live:
+        try:
+            IndexStore().ensure(live)
+        except Exception:
+            pass
+        return live, "live"
+    indexed = _indexed_schemas()
+    if indexed:
+        return indexed, "index"
+    return [], "none"
+
+
 def tool_slimmer_status(args: dict, **kwargs: Any) -> str:
     try:
         cfg = load_config(args.get("config_path") if isinstance(args, dict) else None)
@@ -29,9 +74,11 @@ def tool_slimmer_select(args: dict, **kwargs: Any) -> str:
             cfg = ToolSlimmerConfig.from_mapping(
                 {**cfg.__dict__, "mode": args.get("mode"), "anthropic": cfg.anthropic.__dict__}
             )
-        schemas = args.get("schemas") or kwargs.get("schemas") or []
+        schemas, schema_source = _resolve_schemas(args, kwargs)
+        if not schemas:
+            return _json({"ok": False, "error": "no_schemas_available", "message": "Provide schemas, run inside Hermes with live tool definitions, or rebuild the Tool Slimmer index."})
         query = args.get("query") or args.get("text") or ""
         result = ToolSelector(cfg).select(query, schemas)
-        return _json({"ok": True, "mode": result.mode, "selected": result.selected_names, "scores": result.scores, "score_details": result.score_details, "fail_open": result.fail_open, "reason": result.reason})
+        return _json({"ok": True, "mode": result.mode, "schema_source": schema_source, "schema_count": len(schemas), "selected": result.selected_names, "scores": result.scores, "score_details": result.score_details, "fail_open": result.fail_open, "reason": result.reason})
     except Exception as exc:
         return _json({"ok": False, "error": str(exc)})

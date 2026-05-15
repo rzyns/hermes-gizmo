@@ -90,6 +90,7 @@
     const privacy = data.privacy || {};
     const recommendations = advisor.recommendations || [];
     const latestDecision = recent.length ? recent[recent.length - 1] : null;
+    const latestMetrics = latestDecision && latestDecision.metrics ? latestDecision.metrics : {};
     const latestCandidates = latestDecision && latestDecision.metrics && latestDecision.metrics.top_candidates
       ? latestDecision.metrics.top_candidates
       : [];
@@ -173,6 +174,13 @@
           label: "Selector Overhead",
           value: Number(averages.selection_ms || 0).toFixed(2) + " ms",
           detail: fmtNumber(totals.skipped_events || 0) + " low-value selections skipped",
+        }),
+        React.createElement(Metric, {
+          label: "Anthropic Deferred",
+          value: fmtNumber(latestMetrics.anthropic_deferred_tools),
+          detail: latestMetrics.metric_basis === "hot_set"
+            ? "Latest event measured against hot set"
+            : "No hot-set event recorded",
         }),
       ),
 
@@ -263,6 +271,7 @@
                   " / toolset ", Number(details.toolset_boost || 0).toFixed(2),
                   " / params ", Number(details.parameter_boost || 0).toFixed(2),
                   " / alias ", Number(details.alias_boost || 0).toFixed(2),
+                  " / hybrid ", Number(details.hybrid_boost || 0).toFixed(2),
                 ),
               );
             }),
@@ -399,8 +408,14 @@
                   React.createElement("td", null,
                     String(metrics.estimated_reduction_percent || 0) + "%",
                     metrics.skipped && React.createElement("div", { className: "tool-slimmer-muted text-xs" }, metrics.skip_reason || "skipped"),
+                    metrics.metric_basis && React.createElement("div", { className: "tool-slimmer-muted text-xs" }, "basis: ", metrics.metric_basis),
                   ),
-                  React.createElement("td", null, String(metrics.selected_tools || 0), " / ", String(metrics.total_tools || 0)),
+                  React.createElement("td", null,
+                    String(metrics.selected_tools || 0), " / ", String(metrics.total_tools || 0),
+                    metrics.anthropic_payload_tools && React.createElement("div", { className: "tool-slimmer-muted text-xs" },
+                      String(metrics.anthropic_deferred_tools || 0), " deferred / ", String(metrics.anthropic_payload_tools || 0), " payload",
+                    ),
+                  ),
                   React.createElement("td", null, React.createElement(ToolPills, { tools: metrics.selected || [] })),
                 );
               }),

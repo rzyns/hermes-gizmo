@@ -40,7 +40,7 @@ Hermes mounts plugin API routers during dashboard startup; a plugin rescan can d
 
 The dashboard reads from `$HERMES_HOME/tool-slimmer/decisions.jsonl`. Decision logging is enabled when `tool_slimmer.log_decisions: true`, which is the default. Logged records contain selector metrics, provider/model/platform/session metadata, and selected tool names; they do not store user prompts.
 
-The dashboard includes a privacy card backed by the same field inventory as `hermes tool-slimmer privacy`. It also exposes score details for recent v0.3.0+ decisions in the Decision Inspector and can generate the bundled example eval report from the Release Evidence card.
+The dashboard includes a privacy card backed by the same field inventory as `hermes tool-slimmer privacy`. It also exposes score details for recent v0.3.0+ decisions in the Decision Inspector, including alias and hybrid boosts, and can generate the bundled example eval report from the Release Evidence card.
 
 ## Tool Index
 
@@ -54,7 +54,7 @@ The dashboard reports estimated schema-token savings, not guaranteed billable-to
 
 Headline dashboard totals count real Hermes session events by default. Events without a `session_id` are treated as probes/tests and excluded from headline totals; the backend still returns `all_summary` for full audit visibility.
 
-The dashboard also reports average selector overhead in milliseconds and the number of low-value selections skipped by the guardrails. Skips are expected for small cron catalogs or any request where estimated reduction is below `tool_slimmer.min_estimated_reduction_percent`.
+The dashboard also reports average selector overhead in milliseconds, the number of low-value selections skipped by the guardrails, and Anthropic deferred-tool counts when `anthropic_tool_search` is active. Skips are expected for small cron catalogs or any request where estimated reduction is below `tool_slimmer.min_estimated_reduction_percent`.
 
 ## Troubleshooting
 

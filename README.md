@@ -131,14 +131,16 @@ If none exists, the plugin does not monkeypatch provider internals. It remains u
 ## Safety model
 
 - `always_include` tools are selected first when present and not already disabled by Hermes.
-- `top_k` applies after `always_include`; always-included tools do not count against the `top_k` budget.
+- `top_k` applies after `always_include`; always-included tools do not count against the `top_k` budget. `top_k: 0` is treated as an explicit request to select no ranked tools, so it does not fail open to the full catalog.
 - `disabled_tools`, `disabled_toolsets`, `include_mcp_tools`, and `include_native_tools` are respected before ranking.
 - `min_total_tools` skips catalogs with fewer than that many tools before ranking; equality is allowed to slim.
-- `min_estimated_reduction_percent` fails open after ranking if the estimated schema reduction is too small to justify altering the request.
+- `min_estimated_reduction_percent` fails open after ranking if the estimated schema reduction is too small to justify altering the request. In `anthropic_tool_search` mode, this guardrail is measured against the hot tool set because deferred tools are discoverable rather than eagerly loaded.
 - `fail_open: true` sends the original schema list on selector errors.
 
 Keyword mode is intentionally mostly literal. It includes a small deterministic synonym map for common operation words such as browsing/navigation, but tool-specific synonyms should still be added to tool descriptions or handled by a semantic selector mode when available.
 - `aliases` extends keyword query expansion deterministically; aliases affect ranking and score details but do not rewrite stored tool schemas.
+- `hybrid` mode keeps BM25 ranking and adds a deterministic fuzzy-token boost for close spelling/wording misses.
+- The standalone `tool_slimmer_select` tool uses provided schemas first, live Hermes tool definitions second, and the persisted index as a final fallback.
 - `dry_run: true` logs decisions and returns `None` to preserve original behavior.
 - Anthropic Tool Search helpers never defer every tool.
 

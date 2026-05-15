@@ -36,7 +36,10 @@ class IndexStore:
     def load(self) -> dict[str, Any] | None:
         if not self.path.exists():
             return None
-        return json.loads(self.path.read_text())
+        try:
+            return json.loads(self.path.read_text())
+        except json.JSONDecodeError:
+            return None
 
     def rebuild(self, schemas: list[Schema]) -> dict[str, Any]:
         docs = build_corpus(schemas)

@@ -13,6 +13,26 @@ from .types import Schema
 LOG = logging.getLogger(__name__)
 
 
+def _metrics_for_selection(
+    mode: str,
+    schemas: list[Schema],
+    selected: list[Schema],
+    hot_selected: list[Schema],
+    always_included: list[str],
+) -> dict[str, object]:
+    metrics_selected = selected
+    if mode == "anthropic_tool_search" and selected is not hot_selected:
+        metrics_selected = hot_selected
+    metrics = reduction_metrics(mode, schemas, metrics_selected, always_included)
+    if mode == "anthropic_tool_search" and selected is not hot_selected:
+        metrics["metric_basis"] = "hot_set"
+        metrics["anthropic_payload_tools"] = len(selected)
+        metrics["anthropic_deferred_tools"] = sum(
+            1 for schema in selected if isinstance(schema, dict) and schema.get("defer_loading") is True
+        )
+    return metrics
+
+
 def select_tool_schemas_callback(
     user_message: str,
     conversation_history: list[Any] | None,
@@ -90,7 +110,7 @@ def select_tool_schemas_callback(
             )
             selected = result.selected
             effective_cfg = fallback_cfg
-        metrics = reduction_metrics(effective_cfg.mode, schemas, selected, result.always_included)
+        metrics = _metrics_for_selection(effective_cfg.mode, schemas, selected, result.selected, result.always_included)
         metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)
         metrics["selected_scores"] = {name: result.score_details.get(name, {}) for name in result.selected_names}
         metrics["top_candidates"] = [

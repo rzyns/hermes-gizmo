@@ -101,6 +101,13 @@ def test_empty_query_fails_open_instead_of_arbitrary_tool():
     assert result.selected == SCHEMAS
 
 
+def test_top_k_zero_does_not_fail_open_to_all_tools():
+    cfg = ToolSlimmerConfig(top_k=0, always_include=[], fail_open=True)
+    result = ToolSelector(cfg).select("search", SCHEMAS)
+    assert result.fail_open is False
+    assert result.selected_names == []
+
+
 def test_no_match_keeps_always_include_only():
     cfg = ToolSlimmerConfig(top_k=3, always_include=["terminal"])
     result = ToolSelector(cfg).select("xyzqwerty12345 nonsense", SCHEMAS)
@@ -161,3 +168,14 @@ def test_configured_aliases_expand_keyword_matching():
     result = ToolSelector(cfg).select("repo search", SCHEMAS)
     assert result.selected_names == ["github_search_code"]
     assert "github" in result.expanded_query_tokens
+
+
+def test_hybrid_mode_adds_fuzzy_token_boost():
+    cfg = ToolSlimmerConfig(mode="hybrid", top_k=1, always_include=[])
+    schemas = [
+        {"name": "repository_lookup", "description": "Find repository metadata"},
+        {"name": "slack_send_message", "description": "Send Slack message"},
+    ]
+    result = ToolSelector(cfg).select("repozitory metadata", schemas)
+    assert result.selected_names == ["repository_lookup"]
+    assert result.score_details["repository_lookup"]["hybrid_boost"] > 0

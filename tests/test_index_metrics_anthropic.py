@@ -36,6 +36,12 @@ def test_index_checksum_is_order_independent():
     assert IndexStore.checksum(schemas) == IndexStore.checksum(list(reversed(schemas)))
 
 
+def test_index_load_returns_none_for_corrupt_json(tmp_path):
+    store = IndexStore(tmp_path)
+    store.path.write_text("{not json")
+    assert store.load() is None
+
+
 def test_metrics_estimate_reduction():
     original = [{"name": "a", "description": "x" * 100}, {"name": "b", "description": "y" * 100}]
     selected = [original[0]]

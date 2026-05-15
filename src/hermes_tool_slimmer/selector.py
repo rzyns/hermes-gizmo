@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from difflib import SequenceMatcher
 from typing import Iterable
 
 from .bm25 import BM25
@@ -67,7 +68,7 @@ class ToolSelector:
         score_details: dict[str, dict[str, float]] = {}
         scores: dict[str, float] = {}
         for doc, raw_score in zip(docs, raw_scores, strict=True):
-            parts = self._score_parts(query_tokens, alias_terms, doc)
+            parts = self._score_parts(query_tokens, alias_terms, doc, hybrid=self.config.mode == "hybrid")
             parts["bm25"] = raw_score
             total = round(sum(parts.values()), 6)
             parts["total"] = total
@@ -94,7 +95,7 @@ class ToolSelector:
         if not has_relevant_match:
             if selected:
                 return SelectionResult(self.config.mode, selected, [tool_name(s) for s in selected], scores, len(schemas), always_present, reason="no_relevant_match", score_details=score_details, expanded_query_tokens=query_tokens)
-            if eligible and self.config.fail_open:
+            if eligible and self.config.fail_open and self.config.top_k > 0:
                 return SelectionResult(self.config.mode, eligible, [tool_name(s) for s in eligible], scores, len(schemas), always_present, fail_open=True, reason="no_relevant_match", score_details=score_details, expanded_query_tokens=query_tokens)
             return SelectionResult(self.config.mode, selected, [], scores, len(schemas), always_present, reason="no_relevant_match", score_details=score_details, expanded_query_tokens=query_tokens)
 
@@ -111,14 +112,14 @@ class ToolSelector:
             selected_names.add(doc.name)
             remaining_slots -= 1
 
-        if not selected and eligible and self.config.fail_open:
+        if not selected and eligible and self.config.fail_open and self.config.top_k > 0:
             return SelectionResult(self.config.mode, schemas, [tool_name(s) for s in schemas], scores, len(schemas), always_present, fail_open=True, reason="selector produced empty set", score_details=score_details, expanded_query_tokens=query_tokens)
         return SelectionResult(self.config.mode, selected, [tool_name(s) for s in selected], scores, len(schemas), always_present, score_details=score_details, expanded_query_tokens=query_tokens)
 
     @staticmethod
-    def _score_parts(query_tokens: list[str], alias_terms: set[str], doc: ToolDocument) -> dict[str, float]:
+    def _score_parts(query_tokens: list[str], alias_terms: set[str], doc: ToolDocument, *, hybrid: bool = False) -> dict[str, float]:
         query = set(query_tokens)
-        parts = {"name_boost": 0.0, "toolset_boost": 0.0, "parameter_boost": 0.0, "alias_boost": 0.0}
+        parts = {"name_boost": 0.0, "toolset_boost": 0.0, "parameter_boost": 0.0, "alias_boost": 0.0, "hybrid_boost": 0.0}
         normalized_name = doc.name.lower()
         query_text = " ".join(query_tokens)
         if len(normalized_name) >= 2 and (normalized_name in query_text or normalized_name.replace("_", " ") in query_text):
@@ -128,6 +129,13 @@ class ToolSelector:
         parts["parameter_boost"] += 1.25 * len(doc.parameter_tokens & query)
         alias_matches = alias_terms & (set(doc.tokens) | doc.parameter_tokens | set(tokenize(doc.toolset or "")))
         parts["alias_boost"] += 0.75 * len(alias_matches)
+        if hybrid:
+            doc_terms = {token for token in doc.tokens if len(token) >= 4}
+            for token in query:
+                if len(token) < 4 or token in doc_terms:
+                    continue
+                if any(SequenceMatcher(None, token, candidate).ratio() >= 0.84 for candidate in doc_terms):
+                    parts["hybrid_boost"] += 0.5
         return parts
 
 
