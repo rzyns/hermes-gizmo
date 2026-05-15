@@ -127,7 +127,7 @@ If none exists, the plugin does not monkeypatch provider internals. It remains u
 - `always_include` tools are selected first when present and not already disabled by Hermes.
 - `top_k` applies after `always_include`; always-included tools do not count against the `top_k` budget.
 - `disabled_tools`, `disabled_toolsets`, `include_mcp_tools`, and `include_native_tools` are respected before ranking.
-- `min_total_tools` skips small catalogs before ranking; this keeps cron/small-toolset overhead near zero when there is little to save.
+- `min_total_tools` skips catalogs with fewer than that many tools before ranking; equality is allowed to slim.
 - `min_estimated_reduction_percent` fails open after ranking if the estimated schema reduction is too small to justify altering the request.
 - `fail_open: true` sends the original schema list on selector errors.
 

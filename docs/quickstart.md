@@ -35,7 +35,7 @@ tool_slimmer:
 
 Start with `dry_run: true`. This lets you inspect selections without changing provider requests.
 
-`min_total_tools` and `min_estimated_reduction_percent` are low-overhead guardrails. They skip small or marginal selections, which is especially useful for cron jobs and other short tool catalogs where the schema savings may not justify changing the request.
+`min_total_tools` and `min_estimated_reduction_percent` are low-overhead guardrails. `min_total_tools` skips catalogs with fewer than that many tools; equality is allowed to slim. These guardrails are especially useful for cron jobs and other short tool catalogs where the schema savings may not justify changing the request.
 
 ## 3. Check installation
 
