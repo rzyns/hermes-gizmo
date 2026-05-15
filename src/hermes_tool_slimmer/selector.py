@@ -42,6 +42,9 @@ class ToolSelector:
         disabled_toolsets = set(self.config.disabled_toolsets)
         out = []
         for schema in schemas:
+            if not isinstance(schema, dict):
+                LOG.warning("skipping non-dict tool schema: %r", schema)
+                continue
             name = tool_name(schema)
             toolset = tool_toolset(schema)
             if name in disabled or (toolset and toolset in disabled_toolsets):

@@ -7,17 +7,23 @@ from .tokenizer import tokenize, tokens_with_exact_identifier
 from .types import Schema, ToolDocument
 
 
-def tool_name(schema: Schema) -> str:
+def tool_name(schema: object) -> str:
+    if not isinstance(schema, dict):
+        return ""
     function = schema.get("function") or {}
     return str(schema.get("name") or (function.get("name") if isinstance(function, dict) else "") or "")
 
 
-def tool_description(schema: Schema) -> str:
+def tool_description(schema: object) -> str:
+    if not isinstance(schema, dict):
+        return ""
     function = schema.get("function") or {}
     return str(schema.get("description") or (function.get("description") if isinstance(function, dict) else "") or "")
 
 
-def tool_toolset(schema: Schema) -> str | None:
+def tool_toolset(schema: object) -> str | None:
+    if not isinstance(schema, dict):
+        return None
     for key in ("toolset", "tool_set", "namespace", "server", "mcp_server"):
         value = schema.get(key)
         if value:
@@ -25,7 +31,9 @@ def tool_toolset(schema: Schema) -> str | None:
     return None
 
 
-def _schema_parameters(schema: Schema) -> dict[str, Any]:
+def _schema_parameters(schema: object) -> dict[str, Any]:
+    if not isinstance(schema, dict):
+        return {}
     params = schema.get("parameters") or schema.get("input_schema") or {}
     if not params and isinstance(schema.get("function"), dict):
         params = schema["function"].get("parameters") or {}

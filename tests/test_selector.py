@@ -31,6 +31,14 @@ def test_selector_does_not_select_disabled_tools():
     assert "github_search_code" not in result.selected_names
 
 
+def test_selector_skips_non_dict_schemas(caplog):
+    cfg = ToolSlimmerConfig(top_k=1, always_include=[])
+    with caplog.at_level("WARNING", logger="hermes_tool_slimmer.selector"):
+        result = ToolSelector(cfg).select("ok", [{"name": "ok_tool", "description": "ok"}, None])
+    assert result.selected_names == ["ok_tool"]
+    assert "skipping non-dict tool schema" in caplog.text
+
+
 def test_selector_fails_open_on_index_error(monkeypatch):
     cfg = ToolSlimmerConfig(top_k=2, always_include=[])
     selector = ToolSelector(cfg)

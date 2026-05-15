@@ -42,6 +42,8 @@ class ToolSlimmerConfig:
     def from_mapping(cls, data: dict[str, Any] | None) -> "ToolSlimmerConfig":
         raw = dict(data or {})
         anthropic_raw = raw.pop("anthropic", {}) or {}
+        if not isinstance(anthropic_raw, dict):
+            anthropic_raw = {}
         cfg = cls(**{key: value for key, value in raw.items() if key in cls.__dataclass_fields__ and key != "anthropic"})
         cfg.anthropic = AnthropicConfig(**{key: value for key, value in anthropic_raw.items() if key in AnthropicConfig.__dataclass_fields__})
         cfg.validate()

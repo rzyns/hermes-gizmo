@@ -35,6 +35,11 @@ def test_config_full_mapping_and_nested_anthropic():
     assert cfg.anthropic.tool_search_supported is True
 
 
+def test_config_ignores_invalid_anthropic_section_type():
+    cfg = ToolSlimmerConfig.from_mapping({"anthropic": "tool_search"})
+    assert cfg.anthropic.variant == "bm25"
+
+
 def test_config_invalid_mode():
     with pytest.raises(ValueError):
         ToolSlimmerConfig.from_mapping({"mode": "bad"})

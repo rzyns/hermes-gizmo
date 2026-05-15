@@ -13,6 +13,18 @@ def test_index_rebuilds_on_schema_checksum_change(tmp_path):
     assert one["checksum"] != two["checksum"]
 
 
+def test_index_store_accepts_string_root(tmp_path):
+    store = IndexStore(str(tmp_path / "index-root"))
+    payload = store.rebuild([{"name": "read_file", "description": "Read"}])
+    assert payload["total_tools"] == 1
+    assert store.path.exists()
+
+
+def test_index_checksum_tolerates_null_function_schema():
+    checksum = IndexStore.checksum([{"name": None, "function": None}])
+    assert isinstance(checksum, str)
+
+
 def test_metrics_estimate_reduction():
     original = [{"name": "a", "description": "x" * 100}, {"name": "b", "description": "y" * 100}]
     selected = [original[0]]

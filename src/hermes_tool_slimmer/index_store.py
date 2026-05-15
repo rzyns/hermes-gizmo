@@ -4,22 +4,21 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 from typing import Any
 
 from .config import hermes_home
 from .corpus import build_corpus, tool_description, tool_name, tool_toolset
+from .corpus import _schema_parameters
 from .types import Schema
 
 
 @dataclass
 class IndexStore:
-    root: Path | None = None
+    root: Path
+    path: Path
 
-    def __post_init__(self) -> None:
-        if self.root is None:
-            self.root = hermes_home() / "tool-slimmer"
-        root = cast(Path, self.root)
+    def __init__(self, root: Path | str | None = None) -> None:
+        root = Path(root or hermes_home() / "tool-slimmer").expanduser()
         root.mkdir(parents=True, exist_ok=True)
         self.root = root
         self.path = root / "tool_index.json"
@@ -27,7 +26,7 @@ class IndexStore:
     @staticmethod
     def checksum(schemas: list[Schema]) -> str:
         normalized = [
-            {"name": tool_name(schema), "toolset": tool_toolset(schema), "description": tool_description(schema), "parameters": schema.get("parameters") or schema.get("input_schema") or schema.get("function", {}).get("parameters")}
+            {"name": tool_name(schema), "toolset": tool_toolset(schema), "description": tool_description(schema), "parameters": _schema_parameters(schema)}
             for schema in schemas
         ]
         payload = json.dumps(normalized, sort_keys=True, default=str, separators=(",", ":"))
