@@ -63,6 +63,104 @@ def analyze_config(cfg: ToolSlimmerConfig, summary: dict[str, object] | None = N
     }
 
 
+def privacy_inventory() -> dict[str, object]:
+    return {
+        "ok": True,
+        "raw_prompts_logged": False,
+        "decision_log_path": str(IndexStore().root / "decisions.jsonl"),
+        "event_fields": ["timestamp", "metrics", "context"],
+        "context_fields": ["provider", "model", "platform", "session_id", "dry_run", "schema_count"],
+        "metric_fields": [
+            "mode",
+            "total_tools",
+            "selected_tools",
+            "schema_bytes_before",
+            "schema_bytes_after",
+            "schema_bytes_saved",
+            "approx_tokens_before",
+            "approx_tokens_after",
+            "approx_tokens_saved",
+            "estimated_reduction_percent",
+            "always_included",
+            "selected",
+            "selection_ms",
+            "skipped",
+            "skip_reason",
+            "selected_scores",
+            "top_candidates",
+            "expanded_query_tokens",
+        ],
+        "notes": [
+            "Raw user prompts are not written to decisions.jsonl.",
+            "Dashboard headline totals exclude events without a session_id.",
+            "Score details include tool names and numeric ranking components.",
+        ],
+    }
+
+
+def eval_prompts(cfg: ToolSlimmerConfig, schemas: list[dict[str, Any]], prompts: list[dict[str, Any]]) -> dict[str, object]:
+    rows = []
+    hits = 0
+    fail_open_count = 0
+    selector = ToolSelector(cfg)
+    total_reduction = 0.0
+    total_selected = 0
+    for prompt in prompts:
+        result = selector.select(str(prompt.get("text") or ""), schemas)
+        metrics = reduction_metrics(cfg.mode, schemas, result.selected, result.always_included)
+        expected = set(prompt.get("expected_any", []))
+        hit = bool(expected & set(result.selected_names)) if expected else None
+        if hit:
+            hits += 1
+        if result.fail_open:
+            fail_open_count += 1
+        total_selected += len(result.selected_names)
+        reduction_value = metrics.get("estimated_reduction_percent")
+        total_reduction += float(reduction_value) if isinstance(reduction_value, (int, float, str)) else 0.0
+        rows.append({"name": prompt.get("name"), "selected": result.selected_names, "expected_included": hit, "reduction_percent": metrics["estimated_reduction_percent"], "fail_open": result.fail_open, "reason": result.reason})
+    expected_rows = [row for row in rows if row["expected_included"] is not None]
+    return {
+        "summary": {
+            "prompts": len(rows),
+            "expected_prompts": len(expected_rows),
+            "hit_rate": round(hits / len(expected_rows), 3) if expected_rows else None,
+            "average_reduction_percent": round(total_reduction / len(rows), 1) if rows else 0.0,
+            "average_selected_tools": round(total_selected / len(rows), 1) if rows else 0.0,
+            "fail_open_count": fail_open_count,
+        },
+        "rows": rows,
+    }
+
+
+def eval_markdown(report: dict[str, object]) -> str:
+    summary = report.get("summary") if isinstance(report, dict) else {}
+    rows = report.get("rows") if isinstance(report, dict) else []
+    summary = summary if isinstance(summary, dict) else {}
+    rows = rows if isinstance(rows, list) else []
+    lines = [
+        "# Tool Slimmer Eval Report",
+        "",
+        "| Metric | Value |",
+        "|---|---:|",
+        f"| Prompts | {summary.get('prompts', 0)} |",
+        f"| Expected prompts | {summary.get('expected_prompts', 0)} |",
+        f"| Hit rate | {summary.get('hit_rate')} |",
+        f"| Average selected tools | {summary.get('average_selected_tools', 0)} |",
+        f"| Average reduction | {summary.get('average_reduction_percent', 0)}% |",
+        f"| Fail-open count | {summary.get('fail_open_count', 0)} |",
+        "",
+        "| Prompt | Expected hit | Reduction | Fail-open | Selected |",
+        "|---|---:|---:|---:|---|",
+    ]
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        selected = ", ".join(str(item) for item in row.get("selected", []))
+        lines.append(f"| {row.get('name') or ''} | {row.get('expected_included')} | {row.get('reduction_percent')}% | {row.get('fail_open')} | {selected} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def run_doctor(
     config_arg: str | None = None,
     schemas_path: str | None = None,
@@ -182,7 +280,9 @@ def setup_argparse(parser: argparse.ArgumentParser) -> None:
     eval_cmd = sub.add_parser("eval")
     eval_cmd.add_argument("--prompts", required=True)
     eval_cmd.add_argument("--schemas")
+    eval_cmd.add_argument("--markdown", action="store_true")
     sub.add_parser("analyze-config")
+    sub.add_parser("privacy")
     sub.add_parser("recommend-config")
 
 
@@ -200,6 +300,9 @@ def handle_cli(args: argparse.Namespace) -> int:
                 sort_keys=True,
             )
         )
+        return 0
+    if args.command == "privacy":
+        print(json.dumps(privacy_inventory(), indent=2, sort_keys=True))
         return 0
 
     cfg = load_config(getattr(args, "config", None))
@@ -237,22 +340,8 @@ def handle_cli(args: argparse.Namespace) -> int:
     if args.command == "eval":
         schemas = _load_schemas(args.schemas)
         prompts = yaml.safe_load(Path(args.prompts).read_text()).get("prompts", [])
-        rows = []
-        hits = 0
-        selector = ToolSelector(cfg)
-        total_reduction = 0.0
-        for prompt in prompts:
-            result = selector.select(prompt["text"], schemas)
-            metrics = reduction_metrics(cfg.mode, schemas, result.selected, result.always_included)
-            expected = set(prompt.get("expected_any", []))
-            hit = bool(expected & set(result.selected_names)) if expected else None
-            if hit:
-                hits += 1
-            reduction_value = metrics.get("estimated_reduction_percent")
-            total_reduction += float(reduction_value) if isinstance(reduction_value, (int, float, str)) else 0.0
-            rows.append({"name": prompt.get("name"), "selected": result.selected_names, "expected_included": hit, "reduction_percent": metrics["estimated_reduction_percent"], "fail_open": result.fail_open, "reason": result.reason})
-        expected_rows = [row for row in rows if row["expected_included"] is not None]
-        print(json.dumps({"summary": {"prompts": len(rows), "expected_prompts": len(expected_rows), "hit_rate": round(hits / len(expected_rows), 3) if expected_rows else None, "average_reduction_percent": round(total_reduction / len(rows), 1) if rows else 0.0}, "rows": rows}, indent=2, sort_keys=True))
+        report = eval_prompts(cfg, schemas, prompts)
+        print(eval_markdown(report) if getattr(args, "markdown", False) else json.dumps(report, indent=2, sort_keys=True))
         return 0
     if args.command == "analyze-config":
         from .metrics import summarize_decisions

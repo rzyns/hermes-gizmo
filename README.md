@@ -93,7 +93,9 @@ hermes tool-slimmer index show --top 20
 hermes tool-slimmer select "search this repo for MCP registration code" --schemas tools.yaml
 hermes tool-slimmer benchmark --prompts examples/prompts.yaml --schemas examples/tools.yaml
 hermes tool-slimmer eval --prompts examples/prompts.yaml --schemas examples/tools.yaml
+hermes tool-slimmer eval --prompts examples/prompts.yaml --schemas examples/tools.yaml --markdown
 hermes tool-slimmer analyze-config
+hermes tool-slimmer privacy
 hermes tool-slimmer recommend-config
 ```
 
@@ -147,6 +149,8 @@ Keyword mode is intentionally mostly literal. It includes a small deterministic 
 - [`docs/hermes-core-integration.md`](docs/hermes-core-integration.md): required Hermes core selector hook contract.
 - [`docs/hermes-core-selector-hook.patch`](docs/hermes-core-selector-hook.patch): minimal upstreamable Hermes core patch artifact.
 - [`docs/anthropic-tool-search.md`](docs/anthropic-tool-search.md): provider capability notes for Anthropic Tool Search.
+- [`docs/privacy.md`](docs/privacy.md): decision log field inventory and privacy notes.
+- [`docs/reports/latest-eval.md`](docs/reports/latest-eval.md): reproducible example evaluation report.
 - [`docs/troubleshooting.md`](docs/troubleshooting.md): common operational issues.
 - [`examples/`](examples/): sample config, prompts, schemas, and expected output.
 

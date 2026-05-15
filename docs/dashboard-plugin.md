@@ -40,6 +40,8 @@ Hermes mounts plugin API routers during dashboard startup; a plugin rescan can d
 
 The dashboard reads from `$HERMES_HOME/tool-slimmer/decisions.jsonl`. Decision logging is enabled when `tool_slimmer.log_decisions: true`, which is the default. Logged records contain selector metrics, provider/model/platform/session metadata, and selected tool names; they do not store user prompts.
 
+The dashboard includes a privacy card backed by the same field inventory as `hermes tool-slimmer privacy`. It also exposes score details for recent v0.3.0+ decisions in the Decision Inspector and can generate the bundled example eval report from the Release Evidence card.
+
 ## Tool Index
 
 The dashboard has a **Tool Index** card that shows the persisted index path, rebuild state, indexed tool count, checksum, last-updated time, and a preview of indexed tool names. Use **Rebuild From Hermes Tools** after adding or removing Hermes plugins or MCP toolsets.

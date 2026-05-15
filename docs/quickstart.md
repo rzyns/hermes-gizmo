@@ -42,6 +42,7 @@ Start with `dry_run: true`. This lets you inspect selections without changing pr
 ```bash
 hermes tool-slimmer doctor
 hermes tool-slimmer status
+hermes tool-slimmer privacy
 scripts/troubleshoot-hermes-tool-slimmer.sh
 ```
 
@@ -50,6 +51,8 @@ scripts/troubleshoot-hermes-tool-slimmer.sh
 Dashboard savings are estimated schema-token savings, not invoice-grade billing numbers. They use serialized tool-schema JSON bytes divided by 4 before and after selection.
 
 Open the Hermes dashboard and use Tool Slimmer's **Tool Index** card to rebuild the index from the currently enabled Hermes tools. This is the easiest way to confirm what the plugin sees after installing or changing toolsets.
+
+Run `hermes tool-slimmer eval --prompts examples/prompts.yaml --schemas examples/tools.yaml --markdown` to reproduce the public example evaluation report.
 
 ## 4. Preview selection
 

@@ -44,7 +44,7 @@
   }
 
   function useToolSlimmerData() {
-    const [state, setState] = useState({ loading: true, error: null, status: null, summary: null, indexInfo: null, advisor: null });
+    const [state, setState] = useState({ loading: true, error: null, status: null, summary: null, indexInfo: null, advisor: null, privacy: null });
 
     function load() {
       setState(function (prev) { return Object.assign({}, prev, { loading: true, error: null }); });
@@ -53,8 +53,9 @@
         SDK.fetchJSON("/api/plugins/tool-slimmer/summary?limit=1000"),
         SDK.fetchJSON("/api/plugins/tool-slimmer/index"),
         SDK.fetchJSON("/api/plugins/tool-slimmer/advisor?limit=1000"),
+        SDK.fetchJSON("/api/plugins/tool-slimmer/privacy"),
       ]).then(function (results) {
-        setState({ loading: false, error: null, status: results[0], summary: results[1].summary, indexInfo: results[2].index, advisor: results[3].advisor });
+        setState({ loading: false, error: null, status: results[0], summary: results[1].summary, indexInfo: results[2].index, advisor: results[3].advisor, privacy: results[4].privacy });
       }).catch(function (error) {
         setState(function (prev) {
           return Object.assign({}, prev, { loading: false, error: error && error.message ? error.message : "LOAD_FAILED" });
@@ -73,6 +74,9 @@
     const data = useToolSlimmerData();
     const [indexBusy, setIndexBusy] = useState(false);
     const [indexMessage, setIndexMessage] = useState(null);
+    const [evalBusy, setEvalBusy] = useState(false);
+    const [evalReport, setEvalReport] = useState(null);
+    const [evalError, setEvalError] = useState(null);
     const summary = data.summary || {};
     const totals = summary.totals || {};
     const averages = summary.averages || {};
@@ -83,6 +87,7 @@
     const recent = summary.recent || [];
     const indexDocs = index.documents || [];
     const advisor = data.advisor || {};
+    const privacy = data.privacy || {};
     const recommendations = advisor.recommendations || [];
     const latestDecision = recent.length ? recent[recent.length - 1] : null;
     const latestCandidates = latestDecision && latestDecision.metrics && latestDecision.metrics.top_candidates
@@ -109,6 +114,18 @@
         setIndexMessage(message);
       }).finally(function () {
         setIndexBusy(false);
+      });
+    }
+
+    function generateEvalReport() {
+      setEvalBusy(true);
+      setEvalError(null);
+      SDK.fetchJSON("/api/plugins/tool-slimmer/eval-report").then(function (result) {
+        setEvalReport(result.report || {});
+      }).catch(function (error) {
+        setEvalError(error && error.message ? error.message : "Eval report failed");
+      }).finally(function () {
+        setEvalBusy(false);
       });
     }
 
@@ -248,6 +265,55 @@
                   " / alias ", Number(details.alias_boost || 0).toFixed(2),
                 ),
               );
+            }),
+          ),
+        ),
+      ),
+
+      React.createElement(Card, null,
+        React.createElement(CardHeader, null, React.createElement(CardTitle, null, "Privacy")),
+        React.createElement(CardContent, { className: "grid gap-3 text-sm" },
+          React.createElement("div", { className: "flex flex-wrap gap-2" },
+            React.createElement(Badge, { variant: privacy.raw_prompts_logged ? "outline" : "default" }, privacy.raw_prompts_logged ? "raw prompts logged" : "raw prompts not logged"),
+            React.createElement(Badge, { variant: "outline" }, "session events only in headline"),
+          ),
+          React.createElement("div", { className: "tool-slimmer-path" }, privacy.decision_log_path || "No decision log path available"),
+          React.createElement("div", { className: "tool-slimmer-muted text-xs" },
+            "Logged fields: ", ((privacy.event_fields || []).concat(privacy.context_fields || []).concat(privacy.metric_fields || [])).slice(0, 18).join(", "),
+            ((privacy.metric_fields || []).length > 12) ? "..." : "",
+          ),
+        ),
+      ),
+
+      React.createElement(Card, null,
+        React.createElement(CardHeader, { className: "flex flex-row items-center justify-between gap-3" },
+          React.createElement(CardTitle, null, "Release Evidence"),
+          React.createElement(Button, { onClick: generateEvalReport, disabled: evalBusy }, evalBusy ? "Generating" : "Generate Eval Report"),
+        ),
+        React.createElement(CardContent, { className: "grid gap-3 text-sm" },
+          !evalReport && !evalError && React.createElement("div", { className: "tool-slimmer-muted" }, "Generate the example prompt/schema evaluation report from the dashboard."),
+          evalError && React.createElement("div", { className: "tool-slimmer-muted" }, evalError),
+          evalReport && evalReport.summary && React.createElement("div", { className: "tool-slimmer-index-grid" },
+            React.createElement("div", null,
+              React.createElement("div", { className: "tool-slimmer-muted text-xs" }, "Hit Rate"),
+              React.createElement("div", { className: "font-medium" }, String(evalReport.summary.hit_rate)),
+            ),
+            React.createElement("div", null,
+              React.createElement("div", { className: "tool-slimmer-muted text-xs" }, "Average Reduction"),
+              React.createElement("div", { className: "font-medium" }, String(evalReport.summary.average_reduction_percent || 0) + "%"),
+            ),
+            React.createElement("div", null,
+              React.createElement("div", { className: "tool-slimmer-muted text-xs" }, "Average Selected"),
+              React.createElement("div", { className: "font-medium" }, String(evalReport.summary.average_selected_tools || 0)),
+            ),
+            React.createElement("div", null,
+              React.createElement("div", { className: "tool-slimmer-muted text-xs" }, "Fail Open"),
+              React.createElement("div", { className: "font-medium" }, String(evalReport.summary.fail_open_count || 0)),
+            ),
+          ),
+          evalReport && evalReport.rows && React.createElement("div", { className: "tool-slimmer-tools" },
+            evalReport.rows.map(function (row) {
+              return React.createElement("span", { key: row.name, className: "tool-slimmer-pill" }, String(row.name) + " " + String(row.expected_included));
             }),
           ),
         ),

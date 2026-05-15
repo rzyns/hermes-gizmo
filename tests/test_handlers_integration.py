@@ -58,10 +58,16 @@ def test_cli_analyze_config_and_eval(tmp_path, capsys):
     assert handle_cli(Namespace(command="eval", config=None, schemas=str(schemas), prompts=str(prompts))) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["summary"]["hit_rate"] == 1.0
+    assert handle_cli(Namespace(command="eval", config=None, schemas=str(schemas), prompts=str(prompts), markdown=True)) == 0
+    assert "# Tool Slimmer Eval Report" in capsys.readouterr().out
     assert handle_cli(Namespace(command="analyze-config", config=None)) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["ok"] is True
     assert "recommendations" in out
+    assert handle_cli(Namespace(command="privacy", config=None)) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["raw_prompts_logged"] is False
+    assert "metrics" in out["event_fields"]
 
 
 def test_integration_contract_returns_none_when_disabled():
@@ -303,6 +309,8 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
         summary = client.get("/summary")
         events = client.get("/events?limit=1")
         advisor = client.get("/advisor")
+        privacy = client.get("/privacy")
+        eval_report = client.get("/eval-report")
         index_before = client.get("/index")
         rebuilt = client.post(
             "/index/rebuild",
@@ -323,6 +331,10 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
     assert events.json()["events"][0]["metrics"]["selected"] == ["read_file"]
     assert advisor.status_code == 200
     assert advisor.json()["advisor"]["ok"] is True
+    assert privacy.status_code == 200
+    assert privacy.json()["privacy"]["raw_prompts_logged"] is False
+    assert eval_report.status_code == 200
+    assert "# Tool Slimmer Eval Report" in eval_report.json()["markdown"]
     assert index_before.status_code == 200
     assert index_before.json()["index"]["exists"] is False
     assert rebuilt.status_code == 200

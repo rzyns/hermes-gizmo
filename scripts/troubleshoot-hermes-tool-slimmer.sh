@@ -100,6 +100,9 @@ eps = [ep for ep in md.entry_points(group="hermes_agent.plugins") if ep.name == 
 print(f"entry_point: {bool(eps)}")
 PY
 
+section "Privacy"
+run_or_warn "hermes tool-slimmer privacy" "$HERMES_BIN" tool-slimmer privacy
+
 section "Hermes Doctor"
 run_or_warn "hermes tool-slimmer doctor" "$HERMES_BIN" tool-slimmer doctor
 
@@ -143,6 +146,18 @@ else
 fi
 
 if [[ "$QUICK" == "0" ]]; then
+  section "Recent Real Events"
+  "$HERMES_PYTHON" - <<'PY'
+from hermes_tool_slimmer.metrics import summarize_decisions
+
+summary = summarize_decisions(require_session=True)
+totals = summary.get("totals", {})
+print(f"real_events: {totals.get('events', 0)}")
+print(f"skipped_events: {totals.get('skipped_events', 0)}")
+print(f"approx_tokens_saved: {totals.get('approx_tokens_saved', 0)}")
+print(f"last_event_at: {summary.get('last_event_at')}")
+PY
+
   section "Recent Decisions"
   if [[ -f "$HERMES_HOME/tool-slimmer/decisions.jsonl" ]]; then
     tail -5 "$HERMES_HOME/tool-slimmer/decisions.jsonl"

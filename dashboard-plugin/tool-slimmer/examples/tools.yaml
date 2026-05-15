@@ -1,0 +1,46 @@
+tools:
+  - name: terminal
+    toolset: native
+    description: Run shell commands.
+    parameters:
+      type: object
+      properties:
+        command:
+          type: string
+          description: Shell command to execute.
+  - name: read_file
+    toolset: native
+    description: Read a file from the workspace.
+  - name: search_files
+    toolset: native
+    description: Search files in the current repository.
+  - name: github_search_code
+    toolset: github
+    description: Search GitHub code for symbols, files, and repository references.
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: GitHub code search query.
+  - name: browser_navigate
+    toolset: browser
+    description: Open a URL in a browser session.
+    parameters:
+      type: object
+      properties:
+        url:
+          type: string
+          description: URL to open.
+  - name: web_search
+    toolset: web
+    description: Search the web for current pages and summaries.
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Search query.
+  - name: mcp_github_search_issues
+    toolset: mcp-github
+    description: Search GitHub issues through an MCP server.

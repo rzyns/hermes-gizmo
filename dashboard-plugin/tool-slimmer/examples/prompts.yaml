@@ -1,0 +1,11 @@
+prompts:
+  - name: repo_search
+    text: "Search the repo for MCP registration and summarize the files involved."
+    expected_any:
+      - search_files
+      - read_file
+  - name: browser_task
+    text: "Open the GitHub issue page and summarize comments."
+    expected_any:
+      - browser_navigate
+      - web_search
