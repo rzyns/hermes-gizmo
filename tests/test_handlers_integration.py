@@ -1,8 +1,13 @@
 import json
+import importlib.util
+from pathlib import Path
+
+import pytest
 
 from hermes_tool_slimmer.commands import handle_slash_command
 from hermes_tool_slimmer.config import ToolSlimmerConfig
 from hermes_tool_slimmer.integration import maybe_register_selector_hook, select_tool_schemas_callback
+from hermes_tool_slimmer.metrics import read_decisions, summarize_decisions
 from hermes_tool_slimmer.tools import tool_slimmer_select, tool_slimmer_status
 
 
@@ -22,8 +27,75 @@ def test_integration_contract_returns_none_when_disabled():
 
 
 def test_integration_contract_dry_run_preserves_original_behavior():
-    out = select_tool_schemas_callback("read", [], [{"name": "read_file"}], "model", "platform", config=ToolSlimmerConfig(dry_run=True))
+    out = select_tool_schemas_callback(
+        "read",
+        [],
+        [{"name": "read_file"}],
+        "model",
+        "platform",
+        config=ToolSlimmerConfig(dry_run=True, log_decisions=False),
+    )
     assert out is None
+
+
+def test_selector_records_decision_metrics(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "read_file", "description": "Read files"},
+        {"name": "search_files", "description": "Search files"},
+        {"name": "slack_send_message", "description": "Send slack message"},
+    ]
+    out = select_tool_schemas_callback(
+        "search files",
+        [],
+        schemas,
+        "model",
+        "dashboard",
+        provider="test-provider",
+        session_id="session-1",
+        config=ToolSlimmerConfig(top_k=1, always_include=[]),
+    )
+    assert out == [schemas[1]]
+
+    events = read_decisions()
+    assert len(events) == 1
+    assert events[0]["context"]["provider"] == "test-provider"
+    assert events[0]["metrics"]["selected"] == ["search_files"]
+    summary = summarize_decisions()
+    assert summary["totals"]["events"] == 1
+    assert summary["totals"]["approx_tokens_saved"] > 0
+    assert summarize_decisions(require_session=True)["totals"]["events"] == 1
+
+
+def test_summary_can_exclude_no_session_probe_events(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "read_file", "description": "Read files"},
+        {"name": "search_files", "description": "Search files"},
+    ]
+    select_tool_schemas_callback(
+        "read",
+        [],
+        schemas,
+        "model",
+        "test",
+        config=ToolSlimmerConfig(top_k=1, always_include=[]),
+    )
+    select_tool_schemas_callback(
+        "search",
+        [],
+        schemas,
+        "model",
+        "tui",
+        session_id="session-1",
+        config=ToolSlimmerConfig(top_k=1, always_include=[]),
+    )
+
+    all_events = summarize_decisions()
+    session_events = summarize_decisions(require_session=True)
+    assert all_events["totals"]["events"] == 2
+    assert session_events["totals"]["events"] == 1
+    assert session_events["ignored_events"] == 1
 
 
 def test_anthropic_mode_falls_back_to_keyword_for_openrouter():
@@ -39,7 +111,12 @@ def test_anthropic_mode_falls_back_to_keyword_for_openrouter():
         "anthropic/claude-sonnet",
         "cli",
         provider="openrouter",
-        config=ToolSlimmerConfig(mode="anthropic_tool_search", top_k=1, always_include=[]),
+        config=ToolSlimmerConfig(
+            mode="anthropic_tool_search",
+            top_k=1,
+            always_include=[],
+            log_decisions=False,
+        ),
     )
     assert out == [schemas[1]]
 
@@ -99,3 +176,39 @@ def test_doctor_reports_malformed_yaml_without_crashing(tmp_path):
     assert result["ok"] is False
     assert result["checks"]["config"]["status"] == "fail"
     assert result["checks"]["plugin_enabled"]["status"] == "warn"
+
+
+def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
+    fastapi = pytest.importorskip("fastapi")
+    testclient = pytest.importorskip("fastapi.testclient")
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.delenv("HERMES_CONFIG", raising=False)
+    select_tool_schemas_callback(
+        "read",
+        [],
+        [{"name": "read_file", "description": "Read files"}, {"name": "terminal", "description": "Run commands"}],
+        "model",
+        "dashboard",
+        config=ToolSlimmerConfig(top_k=1, always_include=[]),
+    )
+
+    plugin_path = Path(__file__).resolve().parents[1] / "dashboard-plugin" / "tool-slimmer" / "dashboard" / "plugin_api.py"
+    spec = importlib.util.spec_from_file_location("tool_slimmer_dashboard_plugin", plugin_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    app = fastapi.FastAPI()
+    app.include_router(module.router)
+    with testclient.TestClient(app) as client:
+        status = client.get("/status")
+        summary = client.get("/summary")
+        events = client.get("/events?limit=1")
+
+    assert status.status_code == 200
+    assert status.json()["config"]["enabled"] is True
+    assert summary.status_code == 200
+    assert summary.json()["summary"]["totals"]["events"] == 1
+    assert summary.json()["all_summary"]["totals"]["events"] == 1
+    assert events.json()["events"][0]["metrics"]["selected"] == ["read_file"]

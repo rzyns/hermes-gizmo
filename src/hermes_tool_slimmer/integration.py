@@ -5,7 +5,7 @@ from typing import Any
 
 from .anthropic_tool_search import maybe_anthropic_tools
 from .config import ToolSlimmerConfig, load_config
-from .metrics import reduction_metrics
+from .metrics import record_decision, reduction_metrics
 from .selector import ToolSelector
 from .types import Schema
 
@@ -67,6 +67,20 @@ def select_tool_schemas_callback(
         metrics = reduction_metrics(effective_cfg.mode, schemas, selected, result.always_included)
         if cfg.log_decisions:
             LOG.info("tool-slimmer selection", extra={"tool_slimmer": metrics})
+            try:
+                record_decision(
+                    metrics,
+                    {
+                        "provider": provider,
+                        "model": model,
+                        "platform": platform,
+                        "session_id": session_id,
+                        "dry_run": cfg.dry_run,
+                        "schema_count": len(schemas),
+                    },
+                )
+            except Exception as exc:
+                LOG.warning("tool-slimmer decision logging failed: %s", exc)
         if cfg.dry_run:
             return None
         return selected

@@ -1,0 +1,14 @@
+{
+  "name": "tool-slimmer",
+  "label": "Tool Slimmer",
+  "description": "Show Tool Slimmer selection activity and estimated schema token savings.",
+  "icon": "Scissors",
+  "version": "0.2.0",
+  "tab": {
+    "path": "/tool-slimmer",
+    "position": "after:plugins"
+  },
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}

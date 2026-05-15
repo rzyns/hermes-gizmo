@@ -1,5 +1,13 @@
 # Hermes Tool Slimmer
 
+[![Tests](https://github.com/alias8818/hermes-tool-slimmer/actions/workflows/tests.yml/badge.svg)](https://github.com/alias8818/hermes-tool-slimmer/actions/workflows/tests.yml)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-3776ab)
+![Ruff](https://img.shields.io/badge/lint-ruff-46a2f1)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Hermes](https://img.shields.io/badge/Hermes-dashboard%20plugin-111827)
+
+![Hermes Tool Slimmer dashboard hero](docs/assets/tool-slimmer-hero.png)
+
 Hermes Tool Slimmer reduces repeated tool-schema overhead by selecting the smallest useful tool set for a turn. It builds an indexable corpus from Hermes tool schemas, ranks candidate tools with local BM25 plus explicit boosts, and fails open to the original schema list when anything goes wrong.
 
 ## Why
@@ -8,23 +16,45 @@ Large Hermes installations can expose dozens of native and MCP tools. A 57-tool 
 
 Tool slimming is only a schema-selection optimization. It must not bypass Hermes approval prompts, tool execution controls, provider auth, disabled toolsets, or any runtime safety policy.
 
+## What The Numbers Mean
+
+The dashboard reports **estimated schema tokens saved**, not guaranteed billable-token savings. The estimate is computed from serialized tool-schema JSON bytes divided by 4 before and after selection. Provider tokenizers, prompt formatting, cache behavior, system prompts, conversation history, and model-specific tool serialization can make actual input-token and billing deltas differ.
+
+The metric is still useful because it measures the repeated tool-catalog payload that Tool Slimmer removes from each request. Treat it as a consistent operational estimate for schema overhead, not as an invoice-grade accounting number.
+
+Dashboard headline totals count real Hermes session events by default. Probe events without a `session_id` are excluded from headline savings and remain available through the dashboard API's `all_summary` field for audits.
+
 ## Install
 
 ```bash
-pip install "git+https://github.com/alias8818/hermes-tool-slimmer.git@v0.1.0"
-hermes plugins enable tool-slimmer
-hermes tool-slimmer status
+scripts/install-hermes-tool-slimmer.sh
 ```
 
-The package metadata is PyPI-ready, but this source release is distributed through GitHub until a package-index publish is completed.
+That handles the package install, dashboard plugin copy, Hermes plugin enablement, selector-hook patch, service restart, and final health report.
 
-For a guided setup, see [`docs/quickstart.md`](docs/quickstart.md).
+For a guided setup, see [`docs/quickstart.md`](docs/quickstart.md). For the Hermes dashboard page, see [`docs/dashboard-plugin.md`](docs/dashboard-plugin.md).
+
+For a plain-English health report:
+
+```bash
+scripts/troubleshoot-hermes-tool-slimmer.sh
+```
 
 For local development:
 
 ```bash
 pip install -e ".[dev]"
 pytest
+```
+
+## Quality Gates
+
+The repository ships focused unit and integration tests for selector behavior, config validation, metrics accounting, dashboard API routes, and provider fallback behavior. Run the same checks used by CI locally:
+
+```bash
+ruff check .
+python -m compileall -q src tests dashboard-plugin/tool-slimmer
+pytest -q
 ```
 
 ## Configure

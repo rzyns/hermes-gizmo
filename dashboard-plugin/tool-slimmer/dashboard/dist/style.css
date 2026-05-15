@@ -1,0 +1,66 @@
+.tool-slimmer-page {
+  min-width: 0;
+}
+
+.tool-slimmer-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.tool-slimmer-metric {
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background) / 0.42);
+  padding: 0.85rem;
+}
+
+.tool-slimmer-metric-label {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+  line-height: 1rem;
+  text-transform: uppercase;
+}
+
+.tool-slimmer-metric-value {
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 2rem;
+}
+
+.tool-slimmer-muted {
+  color: hsl(var(--muted-foreground));
+}
+
+.tool-slimmer-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.tool-slimmer-table th,
+.tool-slimmer-table td {
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 0.6rem 0.4rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tool-slimmer-table th {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.tool-slimmer-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tool-slimmer-pill {
+  border: 1px solid hsl(var(--border));
+  font-family: var(--font-courier);
+  font-size: 0.72rem;
+  padding: 0.12rem 0.4rem;
+}
