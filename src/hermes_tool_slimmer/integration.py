@@ -171,6 +171,23 @@ def pre_llm_diagnostic_hook(**kwargs: Any) -> dict[str, str] | None:
     }
 
 
+def _known_valid_hooks(ctx: Any) -> set[str] | None:
+    valid_hooks = getattr(ctx, "valid_hooks", None) or getattr(ctx, "VALID_HOOKS", None)
+    manager = getattr(ctx, "_manager", None)
+    if valid_hooks is None and manager is not None:
+        valid_hooks = getattr(manager, "VALID_HOOKS", None) or getattr(manager, "valid_hooks", None)
+    if valid_hooks is None:
+        try:
+            from hermes_cli.plugins import VALID_HOOKS  # type: ignore[import-not-found]
+        except Exception:
+            return None
+        valid_hooks = VALID_HOOKS
+    try:
+        return {str(hook) for hook in valid_hooks}
+    except TypeError:
+        return None
+
+
 def maybe_register_selector_hook(ctx: Any) -> bool:
     """Register the selector with Hermes if a selector hook surface exists.
 
@@ -194,10 +211,7 @@ def maybe_register_selector_hook(ctx: Any) -> bool:
             except Exception as exc:
                 LOG.warning("%s registration failed: %s", method_name, exc)
     if callable(register_hook):
-        valid_hooks = getattr(ctx, "valid_hooks", None) or getattr(ctx, "VALID_HOOKS", None)
-        manager = getattr(ctx, "_manager", None)
-        if valid_hooks is None and manager is not None:
-            valid_hooks = getattr(manager, "VALID_HOOKS", None) or getattr(manager, "valid_hooks", None)
+        valid_hooks = _known_valid_hooks(ctx)
         if valid_hooks is not None and "select_tool_schemas" not in valid_hooks:
             LOG.warning("Hermes selector hook is unavailable; tool-slimmer will run diagnostics only")
             return False

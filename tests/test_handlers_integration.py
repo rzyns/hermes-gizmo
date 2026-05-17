@@ -1,5 +1,7 @@
 import json
 import importlib.util
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -348,6 +350,22 @@ def test_selector_hook_registration_fails_safe_when_unknown_hook_rejected():
             calls.append(name)
             if name not in self.valid_hooks:
                 raise ValueError(name)
+
+    assert maybe_register_selector_hook(Ctx()) is False
+    assert calls == ["pre_llm_call"]
+
+
+def test_selector_hook_registration_uses_hermes_valid_hooks_fallback(monkeypatch):
+    calls = []
+    hermes_cli = types.ModuleType("hermes_cli")
+    plugins = types.ModuleType("hermes_cli.plugins")
+    plugins.VALID_HOOKS = {"pre_llm_call", "pre_tool_call"}
+    monkeypatch.setitem(sys.modules, "hermes_cli", hermes_cli)
+    monkeypatch.setitem(sys.modules, "hermes_cli.plugins", plugins)
+
+    class Ctx:
+        def register_hook(self, name, callback):
+            calls.append(name)
 
     assert maybe_register_selector_hook(Ctx()) is False
     assert calls == ["pre_llm_call"]
