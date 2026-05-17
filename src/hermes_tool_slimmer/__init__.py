@@ -5,7 +5,7 @@ from .schemas import SELECT_SCHEMA, STATUS_SCHEMA
 from .tools import tool_slimmer_select, tool_slimmer_status
 
 __all__ = ["register"]
-__version__ = "0.3.6"
+__version__ = "0.3.7"
 
 
 def register(ctx):

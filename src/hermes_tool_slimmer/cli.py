@@ -28,24 +28,33 @@ def _load_schemas(path: str | None) -> list[dict[str, Any]]:
         schemas = data.get("tools") or data.get("schemas")
         if isinstance(schemas, list):
             return schemas
-        documents = data.get("documents")
-        if isinstance(documents, list):
-            out = []
-            for doc in documents:
-                if not isinstance(doc, dict) or not doc.get("name"):
-                    continue
-                tokens = doc.get("tokens")
-                token_text = " ".join(str(token) for token in tokens) if isinstance(tokens, list) else ""
-                out.append(
-                    {
-                        "name": doc.get("name"),
-                        "toolset": doc.get("toolset"),
-                        "description": doc.get("text") or token_text,
-                    }
-                )
-            return out
+        indexed_schemas = _schemas_from_index(data)
+        if indexed_schemas:
+            return indexed_schemas
         return []
     return data or []
+
+
+def _schemas_from_index(index: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(index, dict):
+        return []
+    documents = index.get("documents")
+    if not isinstance(documents, list):
+        return []
+    out = []
+    for doc in documents:
+        if not isinstance(doc, dict) or not doc.get("name"):
+            continue
+        tokens = doc.get("tokens")
+        token_text = " ".join(str(token) for token in tokens) if isinstance(tokens, list) else ""
+        out.append(
+            {
+                "name": doc.get("name"),
+                "toolset": doc.get("toolset"),
+                "description": doc.get("text") or token_text,
+            }
+        )
+    return out
 
 
 def _load_prompts(path: str | None) -> list[dict[str, Any]]:
@@ -246,13 +255,22 @@ def run_doctor(
         index = store.load()
         checks["index_store"] = _check("pass", "index directory is readable/writable", {"path": str(store.path), "indexed_tools": (index or {}).get("total_tools", 0)})
     except Exception as exc:
+        index = None
         checks["index_store"] = _check("fail", "index directory is not readable/writable", str(exc))
 
     schemas = _load_schemas(schemas_path)
+    schema_source = "supplied schemas"
+    if not schemas:
+        schemas = _schemas_from_index(index)
+        schema_source = "tool index"
     if schemas:
         names = _tool_names(schemas)
         missing = [name for name in cfg.always_include if name not in names]
-        checks["always_include"] = _check("pass" if not missing else "warn", "always-included tools exist in supplied schemas" if not missing else "some always-included tools are absent from supplied schemas", missing)
+        checks["always_include"] = _check(
+            "pass" if not missing else "warn",
+            f"always-included tools exist in {schema_source}" if not missing else f"some always-included tools are absent from {schema_source}",
+            missing,
+        )
     else:
         checks["always_include"] = _check("warn", "no schemas supplied; cannot validate always_include")
 

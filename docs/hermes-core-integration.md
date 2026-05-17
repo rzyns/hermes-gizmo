@@ -2,7 +2,7 @@
 
 Hermes Tool Slimmer needs one upstream integration point before provider request construction. Current Hermes v0.14.0 source inspection found the main schema provider in `model_tools.get_tool_definitions(...)`, plugin hook registration in `hermes_cli.plugins.PluginContext.register_hook(...)`, turn orchestration in `agent/conversation_loop.py`, and provider kwargs construction in `agent/chat_completion_helpers.py`.
 
-Compatibility note: Tool Slimmer v0.3.6+ is the supported line for Hermes Agent v0.14.0 active schema slimming. The installer patcher still carries a fallback for older monolithic `run_agent.py` Hermes cores, but older Tool Slimmer releases should not be used with Hermes v0.14.0.
+Compatibility note: Tool Slimmer v0.3.7+ is the supported line for Hermes Agent v0.14.0 active schema slimming. The installer patcher still carries a fallback for older monolithic `run_agent.py` Hermes cores, but older Tool Slimmer releases should not be used with Hermes v0.14.0.
 
 `docs/hermes-core-selector-hook.patch` is a minimal upstreamable patch artifact for Hermes core. It adds:
 

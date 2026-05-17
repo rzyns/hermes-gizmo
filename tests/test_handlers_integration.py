@@ -140,6 +140,27 @@ def test_doctor_reports_missing_explicit_config_as_failure(tmp_path):
     assert result["checks"]["config"]["status"] == "fail"
 
 
+def test_doctor_validates_always_include_against_index(monkeypatch, tmp_path):
+    from hermes_tool_slimmer.cli import run_doctor
+    from hermes_tool_slimmer.index_store import IndexStore
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    IndexStore().rebuild(
+        [
+            {"name": "terminal"},
+            {"name": "read_file"},
+            {"name": "write_file"},
+            {"name": "patch"},
+            {"name": "search_files"},
+        ]
+    )
+
+    result = run_doctor()
+
+    assert result["checks"]["always_include"]["status"] == "pass"
+    assert result["checks"]["always_include"]["message"] == "always-included tools exist in tool index"
+
+
 def test_integration_contract_returns_none_when_disabled():
     out = select_tool_schemas_callback("read", [], [{"name": "read_file"}], "model", "platform", config=ToolSlimmerConfig(enabled=False))
     assert out is None
