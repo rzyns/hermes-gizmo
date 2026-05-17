@@ -6,6 +6,7 @@ from typing import Any
 
 from .anthropic_tool_search import maybe_anthropic_tools
 from .config import ToolSlimmerConfig, load_config
+from .index_store import IndexStore
 from .metrics import record_decision, reduction_metrics
 from .selector import ToolSelector
 from .types import Schema
@@ -19,6 +20,20 @@ def _load_config_for_hook() -> ToolSlimmerConfig:
     except Exception as exc:
         LOG.warning("tool-slimmer config load failed; disabling selector for this request: %s", exc)
         return ToolSlimmerConfig(enabled=False)
+
+
+def _sync_live_index(schemas: list[Schema], min_total_tools: int) -> None:
+    if len(schemas) < min_total_tools:
+        return
+    try:
+        store = IndexStore()
+        current = store.load() or {}
+        current_total = current.get("total_tools")
+        if isinstance(current_total, int) and current_total > len(schemas):
+            return
+        store.ensure(schemas)
+    except Exception as exc:
+        LOG.warning("tool-slimmer live index sync failed: %s", exc)
 
 
 def _metrics_for_selection(
@@ -57,6 +72,7 @@ def select_tool_schemas_callback(
         return None
     try:
         started = perf_counter()
+        _sync_live_index(schemas, cfg.min_total_tools)
         if len(schemas) < cfg.min_total_tools:
             metrics = reduction_metrics(cfg.mode, schemas, schemas, [])
             metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)

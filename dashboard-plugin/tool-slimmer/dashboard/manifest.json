@@ -3,7 +3,7 @@
   "label": "Tool Slimmer",
   "description": "Show Tool Slimmer selection activity and estimated schema token savings.",
   "icon": "Scissors",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "tab": {
     "path": "/tool-slimmer",
     "position": "after:plugins"

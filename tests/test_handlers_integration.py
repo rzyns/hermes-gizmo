@@ -247,6 +247,55 @@ def test_selector_records_decision_metrics(monkeypatch, tmp_path):
     assert summarize_decisions(require_session=True)["totals"]["events"] == 1
 
 
+def test_selector_syncs_index_from_live_request_schemas(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "terminal", "description": "Run commands"},
+        {"name": "runtime_only_tool", "description": "Only exists on active agent request"},
+    ]
+
+    select_tool_schemas_callback(
+        "runtime",
+        [],
+        schemas,
+        "model",
+        "tui",
+        session_id="session-1",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], min_total_tools=0, log_decisions=False),
+    )
+
+    index = IndexStore().load() or {}
+    indexed_names = [doc.get("name") for doc in index.get("documents", [])]
+    assert index["total_tools"] == 2
+    assert "runtime_only_tool" in indexed_names
+
+
+def test_selector_does_not_shrink_index_from_small_request_catalog(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    IndexStore().rebuild(
+        [
+            {"name": "terminal"},
+            {"name": "read_file"},
+            {"name": "write_file"},
+        ]
+    )
+
+    select_tool_schemas_callback(
+        "runtime",
+        [],
+        [{"name": "runtime_only_tool"}],
+        "model",
+        "tui",
+        session_id="session-1",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], min_total_tools=2, log_decisions=False),
+    )
+
+    index = IndexStore().load() or {}
+    indexed_names = [doc.get("name") for doc in index.get("documents", [])]
+    assert index["total_tools"] == 3
+    assert indexed_names == ["terminal", "read_file", "write_file"]
+
+
 def test_summary_can_exclude_no_session_probe_events(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     schemas = [

@@ -26,7 +26,7 @@ Dashboard headline totals count real Hermes session events by default. Probe eve
 
 ## Install
 
-Hermes Tool Slimmer v0.3.8+ is the supported line for Hermes Agent v0.14.0. Older Tool Slimmer releases can load as dashboard/diagnostic plugins on v0.14.0, but they do not provide active schema slimming because Hermes moved the request construction path.
+Hermes Tool Slimmer v0.3.9+ is the supported line for Hermes Agent v0.14.0. Older Tool Slimmer releases can load as dashboard/diagnostic plugins on v0.14.0, but they do not provide active schema slimming because Hermes moved the request construction path.
 
 ```bash
 scripts/install-hermes-tool-slimmer.sh
