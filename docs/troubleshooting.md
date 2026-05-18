@@ -1,5 +1,27 @@
 # Troubleshooting
 
+## Installer script is blocked
+
+If Hermes or an agent says the Tool Slimmer repo downloaded correctly but the installer script was blocked, this is usually an execution approval issue. Run the same command from a normal terminal on the Hermes machine:
+
+```bash
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+```
+
+If the repo is somewhere else, replace `/tmp/hermes-tool-slimmer` with that path. The installer performs the remaining normal steps: package install, dashboard plugin copy, plugin enablement, selector-hook patch check, service restart, and `hermes tool-slimmer doctor`.
+
+Using `bash ...` avoids needing the script executable bit. If the environment still blocks it, approve that exact command in the approval prompt.
+
+If Hermes Agent is handling the install, tell it:
+
+```text
+The repo is downloaded. Continue by running:
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+If this command is blocked, request approval for that exact command.
+After it runs, verify with:
+hermes tool-slimmer doctor
+```
+
 ## Dashboard savings look too high
 
 Dashboard savings are estimated schema-token savings, not guaranteed billable-token savings. Tool Slimmer computes them from serialized tool-schema JSON bytes divided by 4 before and after selection. Actual provider input-token and billing deltas can differ because tokenizers, prompt caching, system prompts, conversation history, and provider-specific tool serialization are outside this estimate.

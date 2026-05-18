@@ -28,11 +28,46 @@ Dashboard headline totals count real Hermes session events by default. Probe eve
 
 Hermes Tool Slimmer v0.4.0+ is the supported line for Hermes Agent v0.14.0. Older Tool Slimmer releases can load as dashboard/diagnostic plugins on v0.14.0, but they do not provide active schema slimming because Hermes moved the request construction path.
 
+From a terminal on the machine that runs Hermes:
+
+```bash
+cd /tmp
+git clone https://github.com/alias8818/hermes-tool-slimmer.git
+cd hermes-tool-slimmer
+```
+
+Then run the installer:
+
 ```bash
 scripts/install-hermes-tool-slimmer.sh
 ```
 
 That handles the package install, dashboard plugin copy, Hermes plugin enablement, selector-hook patch, service restart, and final health report. The core patcher supports both the older monolithic `run_agent.py` Hermes layout and the newer v0.14.0 modular `agent/conversation_loop.py` plus `agent/chat_completion_helpers.py` layout.
+
+Verify it worked:
+
+```bash
+hermes tool-slimmer doctor
+```
+
+If an agent or hosted approval layer blocks direct script execution, run the same installer from a normal terminal, or ask the agent to request approval for this exact command after the repo is downloaded:
+
+```bash
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+```
+
+If the repo was unpacked somewhere else, replace `/tmp/hermes-tool-slimmer` with that directory. A block at this step means the environment denied running the script; it does not mean Hermes config or Tool Slimmer source is broken.
+
+If Hermes Agent is doing the install for you, give it this instruction:
+
+```text
+Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
+After downloading the repo, run:
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+If the environment asks for approval to run that script, request approval for that exact command.
+Then verify with:
+hermes tool-slimmer doctor
+```
 
 For a guided setup, see [`docs/quickstart.md`](docs/quickstart.md). For the Hermes dashboard page, see [`docs/dashboard-plugin.md`](docs/dashboard-plugin.md).
 

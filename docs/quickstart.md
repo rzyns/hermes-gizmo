@@ -4,11 +4,56 @@
 
 Use Tool Slimmer v0.4.0+ with Hermes Agent v0.14.0. Older Tool Slimmer releases are not functionally compatible with Hermes v0.14.0 active schema slimming because the provider request construction code moved.
 
+Open a terminal on the machine where Hermes is installed:
+
+```bash
+cd /tmp
+git clone https://github.com/alias8818/hermes-tool-slimmer.git
+cd hermes-tool-slimmer
+```
+
+Run the installer:
+
 ```bash
 scripts/install-hermes-tool-slimmer.sh
 ```
 
 The installer handles the Python package, dashboard files, Hermes plugin enablement, Hermes core selector hook, service restart, and final verification. Its core patcher supports both older monolithic Hermes cores and the current v0.14.0 modular core layout.
+
+If it finishes successfully, run:
+
+```bash
+hermes tool-slimmer doctor
+```
+
+All checks should pass. If the dashboard is running, the Tool Slimmer tab should appear after the dashboard service restarts.
+
+### If script execution is blocked
+
+Some hosted agent environments block direct execution of downloaded scripts until the user approves that exact command. If Hermes reports that the repository downloaded correctly but `scripts/install-hermes-tool-slimmer.sh` was blocked, run the installer from a normal terminal or approve this command:
+
+```bash
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+```
+
+Use the actual unpacked repo path if it is not `/tmp/hermes-tool-slimmer`. This failure mode is an execution approval problem; the remaining install work is still the normal package install, plugin enablement, core patch check, service restart, and doctor report.
+
+If the approval layer asks what this command does, the answer is: installs the Python package into the Hermes virtual environment, copies the dashboard plugin into `~/.hermes/plugins/tool-slimmer`, enables the plugin, applies the Hermes selector-hook patch when needed, restarts Hermes dashboard/gateway services when present, and runs `doctor`.
+
+### If Hermes Agent is installing it for you
+
+Give Hermes Agent this prompt:
+
+```text
+Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
+After downloading the repo, run:
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+If the environment asks for approval to run that script, request approval for that exact command.
+Then verify with:
+hermes tool-slimmer doctor
+```
+
+If Hermes Agent says it downloaded or unpacked the repo but installation is not complete, the next step is usually only the `bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh` command above.
 
 ## 2. Add configuration
 

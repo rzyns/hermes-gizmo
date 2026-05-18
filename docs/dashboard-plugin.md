@@ -4,6 +4,16 @@ Hermes Tool Slimmer includes a dashboard plugin for visibility into selector act
 
 ## One-command install
 
+From a terminal on the Hermes machine:
+
+```bash
+cd /tmp
+git clone https://github.com/alias8818/hermes-tool-slimmer.git
+cd hermes-tool-slimmer
+```
+
+Then run:
+
 ```bash
 scripts/install-hermes-tool-slimmer.sh
 ```
@@ -16,6 +26,20 @@ That script:
 - patches Hermes core with the `select_tool_schemas` hook when it is missing
 - restarts `hermes-dashboard.service` and `hermes-gateway.service` when they exist
 - runs a final health report
+
+If a restricted agent approval layer blocks direct script execution after downloading the repo, approve or run the explicit shell invocation instead:
+
+```bash
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+```
+
+That is the same installer. The block is environmental, not a dashboard plugin failure.
+
+After install, verify:
+
+```bash
+hermes tool-slimmer doctor
+```
 
 If you only want a health report:
 
