@@ -44,7 +44,7 @@ The dashboard includes a privacy card backed by the same field inventory as `her
 
 ## Tool Index
 
-The dashboard has a **Tool Index** card that shows the persisted index path, rebuild state, indexed tool count, checksum, last-updated time, and a preview of indexed tool names. Use **Rebuild From Hermes Tools** after adding or removing Hermes plugins or MCP toolsets.
+The dashboard has a **Tool Index** card that shows the persisted index path, rebuild state, indexed tool count, checksum, last-updated time, and a preview of indexed tool names. Use **Rebuild From Hermes Tools** after adding or removing Hermes plugins or MCP toolsets. When recent Tool Slimmer decisions exist, the rebuild uses the last live request schema snapshot so agent-injected context and memory tools are included; otherwise it falls back to Hermes' base tool definitions.
 
 The persisted index is an operator aid. Live Hermes requests still rank the request-local tool schemas in memory, so the selector always respects the exact tools Hermes made available for that turn.
 

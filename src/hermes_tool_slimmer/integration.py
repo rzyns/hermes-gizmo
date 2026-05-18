@@ -28,11 +28,13 @@ def _load_config_for_hook() -> ToolSlimmerConfig:
         return ToolSlimmerConfig(enabled=False)
 
 
-def _sync_live_index(schemas: list[Schema], min_total_tools: int) -> None:
+def _sync_live_index(schemas: list[Schema], min_total_tools: int, context: dict[str, Any] | None = None) -> None:
     if len(schemas) < min_total_tools:
         return
     try:
         store = IndexStore()
+        if context and context.get("session_id"):
+            store.save_live_schemas(schemas, context)
         current = store.load() or {}
         current_total = current.get("total_tools")
         if isinstance(current_total, int) and current_total > len(schemas):
@@ -99,7 +101,17 @@ def select_tool_schemas_callback(
         return None
     try:
         started = perf_counter()
-        _sync_live_index(schemas, cfg.min_total_tools)
+        _sync_live_index(
+            schemas,
+            cfg.min_total_tools,
+            {
+                "provider": provider,
+                "model": model,
+                "platform": platform,
+                "session_id": session_id,
+                "schema_count": len(schemas),
+            },
+        )
         if _full_tools_requested(conversation_history):
             metrics = reduction_metrics(cfg.mode, schemas, schemas, [])
             metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)

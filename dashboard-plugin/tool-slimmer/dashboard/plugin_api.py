@@ -54,7 +54,20 @@ def _summarize_index(store: Any) -> dict[str, Any]:
     }
 
 
-def _live_hermes_schemas() -> list[dict[str, Any]]:
+def _last_live_request_schemas() -> list[dict[str, Any]]:
+    try:
+        from hermes_tool_slimmer.index_store import IndexStore
+    except Exception:
+        return []
+    schemas = IndexStore().load_live_schemas()
+    return schemas if schemas and all(isinstance(schema, dict) for schema in schemas) else []
+
+
+def _live_hermes_schemas() -> tuple[list[dict[str, Any]], str]:
+    last_live = _last_live_request_schemas()
+    if last_live:
+        return last_live, "live_request"
+
     try:
         from model_tools import get_tool_definitions  # type: ignore[import-not-found]
     except Exception as exc:  # pragma: no cover - Hermes environment dependent
@@ -86,7 +99,7 @@ def _live_hermes_schemas() -> list[dict[str, Any]]:
             status_code=400,
             detail={"error": "invalid_tool_definitions", "message": "Hermes returned an unexpected tool definition payload."},
         )
-    return schemas
+    return schemas, "hermes"
 
 
 @router.get("/status")
@@ -133,7 +146,7 @@ async def rebuild_index(payload: dict[str, Any] | None = Body(default=None)) -> 
     schemas: list[dict[str, Any]]
     raw_schemas = (payload or {}).get("schemas") or (payload or {}).get("tools")
     if raw_schemas is None:
-        schemas = _live_hermes_schemas()
+        schemas, source = _live_hermes_schemas()
     elif isinstance(raw_schemas, list):
         source = "payload"
         schemas = raw_schemas

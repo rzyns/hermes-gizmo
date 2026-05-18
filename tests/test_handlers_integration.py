@@ -65,6 +65,19 @@ def test_tool_slimmer_select_falls_back_to_index_when_schemas_missing(monkeypatc
     assert result["selected"][0] == "execute_code"
 
 
+def test_tool_slimmer_select_prefers_last_live_request_snapshot(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    IndexStore().rebuild([{"name": "indexed_tool", "description": "Indexed"}])
+    live_schemas = [{"name": "runtime_tool", "description": "Runtime"}, *[{"name": f"extra_{idx}"} for idx in range(19)]]
+    IndexStore().save_live_schemas(live_schemas, {"session_id": "session-1"})
+
+    result = json.loads(tool_slimmer_select({"query": "runtime", "mode": "keyword"}))
+
+    assert result["ok"] is True
+    assert result["schema_source"] == "live_request"
+    assert result["selected"] == ["runtime_tool"]
+
+
 def test_cli_tool_names_tolerates_null_function_wrapper():
     assert _tool_names([{"function": None}]) == {""}
 
@@ -320,9 +333,11 @@ def test_selector_syncs_index_from_live_request_schemas(monkeypatch, tmp_path):
     )
 
     index = IndexStore().load() or {}
+    live_schemas = IndexStore().load_live_schemas(min_total_tools=0, require_session=False)
     indexed_names = [doc.get("name") for doc in index.get("documents", [])]
     assert index["total_tools"] == 2
     assert "runtime_only_tool" in indexed_names
+    assert [schema.get("name") for schema in live_schemas] == ["terminal", "runtime_only_tool"]
 
 
 def test_selector_does_not_shrink_index_from_small_request_catalog(monkeypatch, tmp_path):
@@ -649,6 +664,36 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
     assert rebuilt.json()["index"]["total_tools"] == 2
     assert index_after.json()["index"]["exists"] is True
     assert index_after.json()["index"]["documents"][0]["name"] == "read_file"
+
+
+def test_dashboard_rebuild_prefers_last_live_request_snapshot(monkeypatch, tmp_path):
+    fastapi = pytest.importorskip("fastapi")
+    testclient = pytest.importorskip("fastapi.testclient")
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.delenv("HERMES_CONFIG", raising=False)
+    live_schemas = [
+        {"name": "runtime_tool", "description": "Runtime-only tool"},
+        {"name": "read_file", "description": "Read files"},
+        *[{"name": f"extra_{idx}", "description": "Extra"} for idx in range(18)],
+    ]
+    IndexStore().save_live_schemas(live_schemas, {"session_id": "session-1"})
+
+    plugin_path = Path(__file__).resolve().parents[1] / "dashboard-plugin" / "tool-slimmer" / "dashboard" / "plugin_api.py"
+    spec = importlib.util.spec_from_file_location("tool_slimmer_dashboard_plugin_live_snapshot", plugin_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    app = fastapi.FastAPI()
+    app.include_router(module.router)
+    with testclient.TestClient(app) as client:
+        rebuilt = client.post("/index/rebuild")
+
+    assert rebuilt.status_code == 200
+    assert rebuilt.json()["source"] == "live_request"
+    assert rebuilt.json()["index"]["total_tools"] == 20
+    assert rebuilt.json()["index"]["documents"][0]["name"] == "runtime_tool"
 
 
 def test_dashboard_eval_report_tolerates_malformed_example_yaml(monkeypatch, tmp_path):

@@ -22,6 +22,7 @@ class IndexStore:
         root.mkdir(parents=True, exist_ok=True)
         self.root = root
         self.path = root / "tool_index.json"
+        self.live_schemas_path = root / "live_tool_schemas.json"
 
     @staticmethod
     def checksum(schemas: list[Schema]) -> str:
@@ -41,6 +42,33 @@ class IndexStore:
         except json.JSONDecodeError:
             return None
 
+    def save_live_schemas(self, schemas: list[Schema], context: dict[str, Any] | None = None) -> dict[str, Any]:
+        payload = {
+            "checksum": self.checksum(schemas),
+            "total_tools": len(build_corpus(schemas)),
+            "schemas": schemas,
+            "context": context or {},
+        }
+        self.live_schemas_path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+        return payload
+
+    def load_live_schemas(self, min_total_tools: int = 20, require_session: bool = True) -> list[Schema]:
+        if not self.live_schemas_path.exists():
+            return []
+        try:
+            payload = json.loads(self.live_schemas_path.read_text())
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(payload, dict):
+            return []
+        if _safe_int(payload.get("total_tools")) < min_total_tools:
+            return []
+        context = payload.get("context")
+        if require_session and (not isinstance(context, dict) or not context.get("session_id")):
+            return []
+        schemas = payload.get("schemas")
+        return schemas if isinstance(schemas, list) else []
+
     def rebuild(self, schemas: list[Schema]) -> dict[str, Any]:
         docs = build_corpus(schemas)
         payload = {
@@ -57,3 +85,10 @@ class IndexStore:
         if not current or current.get("checksum") != checksum:
             return self.rebuild(schemas)
         return current
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0

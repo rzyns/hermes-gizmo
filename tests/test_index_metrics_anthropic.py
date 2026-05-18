@@ -21,6 +21,25 @@ def test_index_store_accepts_string_root(tmp_path):
     assert store.path.exists()
 
 
+def test_index_store_saves_last_live_schemas(tmp_path):
+    store = IndexStore(tmp_path)
+    schemas = [{"name": f"tool_{idx}", "description": "Read"} for idx in range(20)]
+    payload = store.save_live_schemas(schemas, {"platform": "tui", "session_id": "session-1"})
+
+    assert payload["total_tools"] == 20
+    assert store.load_live_schemas() == schemas
+
+
+def test_index_store_ignores_probe_live_schemas(tmp_path):
+    store = IndexStore(tmp_path)
+    schemas = [{"name": "read_file", "description": "Read"}]
+
+    store.save_live_schemas(schemas, {"platform": "test"})
+
+    assert store.load_live_schemas() == []
+    assert store.load_live_schemas(min_total_tools=0, require_session=False) == schemas
+
+
 def test_index_checksum_tolerates_null_function_schema():
     checksum = IndexStore.checksum([{"name": None, "function": None}])
     assert isinstance(checksum, str)
