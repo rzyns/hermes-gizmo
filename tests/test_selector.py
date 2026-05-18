@@ -35,6 +35,20 @@ def test_selector_always_includes_full_tools_request_when_available():
     result = ToolSelector(cfg).select("search files", schemas)
     assert result.selected_names == ["tool_slimmer_request_full_tools", "search_files"]
     assert result.always_included == ["tool_slimmer_request_full_tools"]
+    assert "tool_slimmer_request_full_tools" not in result.scores
+
+
+def test_tool_slimmer_introspection_tools_do_not_compete_for_rank():
+    cfg = ToolSlimmerConfig(top_k=1, always_include=[])
+    schemas = [
+        {"name": "tool_slimmer_select", "toolset": "tool-slimmer", "description": "Select relevant tools for a query"},
+        {"name": "tool_slimmer_request_full_tools", "toolset": "tool-slimmer", "description": "Request full tools"},
+        {"name": "execute_code", "description": "Query a database by running code"},
+    ]
+    result = ToolSelector(cfg).select("query a database", schemas)
+    assert result.selected_names == ["tool_slimmer_request_full_tools", "execute_code"]
+    assert "tool_slimmer_select" not in result.selected_names
+    assert "tool_slimmer_select" not in result.scores
 
 
 def test_selector_does_not_select_disabled_tools():
@@ -75,6 +89,93 @@ def test_single_character_tool_name_does_not_get_substring_boost():
     result = ToolSelector(cfg).select("search", schemas)
     assert result.selected_names == ["search_tool"]
     assert result.scores["a"] < result.scores["search_tool"]
+
+
+def test_cronjob_not_first_for_run_python_script():
+    cfg = ToolSlimmerConfig(top_k=1, always_include=[])
+    schemas = [
+        {
+            "name": "cronjob",
+            "description": "Schedule recurring tasks with a script parameter",
+            "parameters": {"properties": {"script": {"description": "Script to run"}}},
+        },
+        {"name": "execute_code", "description": "Run python scripts and execute code"},
+    ]
+
+    result = ToolSelector(cfg).select("run a python script", schemas)
+
+    assert result.selected_names == ["execute_code"]
+    assert result.score_details["cronjob"]["context_penalty"] < 0
+
+
+def test_skill_manage_not_first_for_plain_file_edit():
+    cfg = ToolSlimmerConfig(top_k=1, always_include=[])
+    schemas = [
+        {"name": "skill_manage", "description": "Manage skills with edit patch delete write_file actions"},
+        {"name": "patch", "description": "Patch and edit repository files"},
+        {"name": "write_file", "description": "Write or edit a file"},
+    ]
+
+    result = ToolSelector(cfg).select("edit this file", schemas)
+
+    assert result.selected_names[0] in {"patch", "write_file"}
+    assert result.score_details["skill_manage"]["context_penalty"] < 0
+
+
+def test_feishu_comment_tools_are_downranked_without_feishu_context():
+    cfg = ToolSlimmerConfig(top_k=1, always_include=[])
+    schemas = [
+        {"name": "feishu_drive_list_comments", "description": "List Feishu drive comments"},
+        {"name": "web_search", "description": "Search the web for GitHub PR comments"},
+    ]
+
+    result = ToolSelector(cfg).select("look up GitHub PR comments", schemas)
+
+    assert result.selected_names == ["web_search"]
+    assert result.score_details["feishu_drive_list_comments"]["context_penalty"] < 0
+
+
+def test_feishu_edit_tools_are_downranked_for_file_edit_context():
+    cfg = ToolSlimmerConfig(top_k=2, always_include=[])
+    schemas = [
+        {"name": "feishu_drive_add_comment", "description": "Add or edit Feishu drive comments"},
+        {"name": "patch", "description": "Patch and edit repository files"},
+        {"name": "write_file", "description": "Write or edit a file"},
+    ]
+
+    result = ToolSelector(cfg).select("edit this file", schemas)
+
+    assert "feishu_drive_add_comment" not in result.selected_names
+    assert result.score_details["feishu_drive_add_comment"]["context_penalty"] < 0
+
+
+def test_feishu_tools_are_not_penalized_for_feishu_comment_context():
+    cfg = ToolSlimmerConfig(top_k=1, always_include=[])
+    schemas = [
+        {"name": "feishu_drive_add_comment", "description": "Add Feishu drive comments"},
+        {"name": "web_search", "description": "Search the web for comments"},
+    ]
+
+    result = ToolSelector(cfg).select("add a Feishu comment", schemas)
+
+    assert result.selected_names == ["feishu_drive_add_comment"]
+    assert result.score_details["feishu_drive_add_comment"]["context_penalty"] == 0
+
+
+def test_browser_intent_downranks_cronjob_and_memory_noise():
+    cfg = ToolSlimmerConfig(top_k=2, always_include=[])
+    schemas = [
+        {"name": "cronjob", "description": "Schedule skill tools and browser automation scripts"},
+        {"name": "memory", "description": "Remember skill and tool context"},
+        {"name": "browser_navigate", "description": "Navigate browser to a URL"},
+        {"name": "browser_click", "description": "Click browser page elements"},
+    ]
+
+    result = ToolSelector(cfg).select("use a skill that needs browser tools", schemas)
+
+    assert result.selected_names == ["browser_navigate", "browser_click"]
+    assert result.score_details["cronjob"]["context_penalty"] < 0
+    assert result.score_details["memory"]["context_penalty"] < 0
 
 
 def test_selector_respects_include_mcp_tools_flag():
@@ -154,6 +255,19 @@ def test_duplicate_names_warn_and_keep_first_schema(caplog):
         result = ToolSelector(cfg).select("search target", schemas)
     assert "duplicate tool schema names" in caplog.text
     assert result.selected == [schemas[0]]
+    assert result.scores["same"] == result.score_details["same"]["total"]
+
+
+def test_selector_mode_kwarg_overrides_config():
+    cfg = ToolSlimmerConfig(mode="keyword", top_k=1, always_include=[])
+    schemas = [
+        {"name": "repository_lookup", "description": "Find repository metadata"},
+        {"name": "slack_send_message", "description": "Send Slack message"},
+    ]
+    result = ToolSelector(cfg).select("repozitory metadata", schemas, mode="hybrid")
+    assert result.mode == "hybrid"
+    assert result.selected_names == ["repository_lookup"]
+    assert result.score_details["repository_lookup"]["hybrid_boost"] > 0
 
 
 def test_selector_validates_direct_config_instances():

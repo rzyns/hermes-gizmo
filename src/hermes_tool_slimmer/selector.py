@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from dataclasses import asdict
 from difflib import SequenceMatcher
 from typing import Iterable
 
@@ -15,6 +16,7 @@ from .types import Schema, SelectionResult, ToolDocument
 LOG = logging.getLogger(__name__)
 
 SAFETY_TOOL_NAMES = ("tool_slimmer_request_full_tools",)
+NON_TASK_TOOL_NAMES = ("tool_slimmer_request_full_tools", "tool_slimmer_select", "tool_slimmer_status")
 
 BUILTIN_ALIASES = {
     "browse": ["browser", "navigate", "url", "web", "website", "page"],
@@ -30,7 +32,12 @@ class ToolSelector:
         self.config = config or ToolSlimmerConfig()
         self.config.validate()
 
-    def select(self, user_message: str, schemas: list[Schema], **_: object) -> SelectionResult:
+    def select(self, user_message: str, schemas: list[Schema], **kwargs: object) -> SelectionResult:
+        mode = kwargs.get("mode")
+        if isinstance(mode, str) and mode != self.config.mode:
+            override = asdict(self.config)
+            override["mode"] = mode
+            return ToolSelector(ToolSlimmerConfig.from_mapping(override)).select(user_message, schemas)
         if not self.config.enabled or self.config.mode == "eager":
             return SelectionResult(self.config.mode, schemas, [tool_name(s) for s in schemas], {}, len(schemas), [])
         try:
@@ -62,7 +69,18 @@ class ToolSelector:
 
     def _select_keyword(self, user_message: str, schemas: list[Schema]) -> SelectionResult:
         eligible = self._eligible(schemas)
-        docs = build_corpus(eligible)
+        schemas_by_name: dict[str, list[Schema]] = defaultdict(list)
+        for schema in eligible:
+            schemas_by_name[tool_name(schema)].append(schema)
+        duplicate_names = sorted(name for name, matches in schemas_by_name.items() if len(matches) > 1)
+        if duplicate_names:
+            LOG.warning("duplicate tool schema names encountered; first schema wins: %s", ", ".join(duplicate_names))
+        by_name = {name: matches[0] for name, matches in schemas_by_name.items()}
+        unique_eligible = list(by_name.values())
+
+        non_task_names = set(NON_TASK_TOOL_NAMES)
+        rankable_schemas = [schema for schema in unique_eligible if tool_name(schema) not in non_task_names]
+        docs = build_corpus(rankable_schemas)
         base_query_tokens = tokenize(user_message)
         query_tokens, alias_terms = expand_query_tokens(base_query_tokens, self.config.aliases)
         bm25 = BM25([doc.tokens for doc in docs])
@@ -77,13 +95,6 @@ class ToolSelector:
             score_details[doc.name] = parts
             scores[doc.name] = total
 
-        schemas_by_name: dict[str, list[Schema]] = defaultdict(list)
-        for schema in eligible:
-            schemas_by_name[tool_name(schema)].append(schema)
-        duplicate_names = sorted(name for name, matches in schemas_by_name.items() if len(matches) > 1)
-        if duplicate_names:
-            LOG.warning("duplicate tool schema names encountered; first schema wins: %s", ", ".join(duplicate_names))
-        by_name = {name: matches[0] for name, matches in schemas_by_name.items()}
         selected: list[Schema] = []
         selected_names: set[str] = set()
         always_present: list[str] = []
@@ -121,7 +132,7 @@ class ToolSelector:
     @staticmethod
     def _score_parts(query_tokens: list[str], alias_terms: set[str], doc: ToolDocument, *, hybrid: bool = False) -> dict[str, float]:
         query = set(query_tokens)
-        parts = {"name_boost": 0.0, "toolset_boost": 0.0, "parameter_boost": 0.0, "alias_boost": 0.0, "hybrid_boost": 0.0}
+        parts = {"name_boost": 0.0, "toolset_boost": 0.0, "parameter_boost": 0.0, "alias_boost": 0.0, "hybrid_boost": 0.0, "context_penalty": 0.0}
         normalized_name = doc.name.lower()
         query_text = " ".join(query_tokens)
         if len(normalized_name) >= 2 and (normalized_name in query_text or normalized_name.replace("_", " ") in query_text):
@@ -138,6 +149,19 @@ class ToolSelector:
                     continue
                 if any(SequenceMatcher(None, token, candidate).ratio() >= 0.84 for candidate in doc_terms):
                     parts["hybrid_boost"] += 0.5
+        has_schedule_context = bool({"cron", "schedule", "scheduled", "recurring", "every"} & query)
+        has_feishu_context = bool({"feishu", "lark", "drive", "doc", "docs"} & query)
+        has_browser_context = bool({"browser", "browse", "browsing", "navigate", "website", "webpage", "url", "page"} & query)
+        if doc.name == "cronjob" and {"python", "script", "run", "execute"} & query and not has_schedule_context:
+            parts["context_penalty"] -= 12.0
+        if doc.name == "cronjob" and has_browser_context and not has_schedule_context:
+            parts["context_penalty"] -= 8.0
+        if doc.name == "memory" and has_browser_context:
+            parts["context_penalty"] -= 6.0
+        if doc.name == "skill_manage" and {"edit", "patch", "write", "file", "repo", "repository"} & query and not {"skill", "skills"} & query:
+            parts["context_penalty"] -= 8.0
+        if doc.name.startswith("feishu_") and not has_feishu_context and {"comment", "comments", "edit", "file", "patch", "write", "script", "python", "code", "repo", "repository", "github", "pr"} & query:
+            parts["context_penalty"] -= 10.0
         return parts
 
 

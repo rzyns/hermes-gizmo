@@ -40,6 +40,25 @@ def test_index_store_ignores_probe_live_schemas(tmp_path):
     assert store.load_live_schemas(min_total_tools=0, require_session=False) == schemas
 
 
+def test_index_store_load_live_schemas_defaults_to_small_sessions(tmp_path):
+    store = IndexStore(tmp_path)
+    schemas = [{"name": "read_file", "description": "Read"}]
+
+    store.save_live_schemas(schemas, {"session_id": "session-1"})
+
+    assert store.load_live_schemas() == schemas
+
+
+def test_index_store_rejects_live_schema_checksum_mismatch(tmp_path):
+    store = IndexStore(tmp_path)
+    schemas = [{"name": f"tool_{idx}", "description": "Read"} for idx in range(20)]
+    store.save_live_schemas(schemas, {"session_id": "session-1"})
+    payload = store.live_schemas_path.read_text().replace("tool_0", "edited_tool")
+    store.live_schemas_path.write_text(payload)
+
+    assert store.load_live_schemas() == []
+
+
 def test_index_checksum_tolerates_null_function_schema():
     checksum = IndexStore.checksum([{"name": None, "function": None}])
     assert isinstance(checksum, str)

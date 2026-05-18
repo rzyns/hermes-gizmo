@@ -7,7 +7,8 @@
   const { Badge, Button, Card, CardContent, CardHeader, CardTitle } = SDK.components;
 
   function fmtNumber(value) {
-    return new Intl.NumberFormat().format(Math.round(Number(value || 0)));
+    const number = Number(value || 0);
+    return new Intl.NumberFormat().format(Number.isFinite(number) ? Math.round(number) : 0);
   }
 
   function fmtTime(timestamp) {
@@ -172,7 +173,7 @@
         }),
         React.createElement(Metric, {
           label: "Selector Overhead",
-          value: Number(averages.selection_ms || 0).toFixed(2) + " ms",
+          value: (Number.isFinite(Number(averages.selection_ms || 0)) ? Number(averages.selection_ms || 0) : 0).toFixed(2) + " ms",
           detail: fmtNumber(totals.skipped_events || 0) + " low-value selections skipped",
         }),
         React.createElement(Metric, {
@@ -263,15 +264,15 @@
               return React.createElement("div", { key: candidate.name, className: "tool-slimmer-score-row" },
                 React.createElement("div", { className: "flex justify-between gap-3" },
                   React.createElement("span", { className: "font-courier" }, candidate.name),
-                  React.createElement("span", null, Number(candidate.score || 0).toFixed(2)),
+                  React.createElement("span", null, (Number.isFinite(Number(candidate.score || 0)) ? Number(candidate.score || 0) : 0).toFixed(2)),
                 ),
                 React.createElement("div", { className: "tool-slimmer-muted text-xs" },
-                  "bm25 ", Number(details.bm25 || 0).toFixed(2),
-                  " / name ", Number(details.name_boost || 0).toFixed(2),
-                  " / toolset ", Number(details.toolset_boost || 0).toFixed(2),
-                  " / params ", Number(details.parameter_boost || 0).toFixed(2),
-                  " / alias ", Number(details.alias_boost || 0).toFixed(2),
-                  " / hybrid ", Number(details.hybrid_boost || 0).toFixed(2),
+                  "bm25 ", (Number.isFinite(Number(details.bm25 || 0)) ? Number(details.bm25 || 0) : 0).toFixed(2),
+                  " / name ", (Number.isFinite(Number(details.name_boost || 0)) ? Number(details.name_boost || 0) : 0).toFixed(2),
+                  " / toolset ", (Number.isFinite(Number(details.toolset_boost || 0)) ? Number(details.toolset_boost || 0) : 0).toFixed(2),
+                  " / params ", (Number.isFinite(Number(details.parameter_boost || 0)) ? Number(details.parameter_boost || 0) : 0).toFixed(2),
+                  " / alias ", (Number.isFinite(Number(details.alias_boost || 0)) ? Number(details.alias_boost || 0) : 0).toFixed(2),
+                  " / hybrid ", (Number.isFinite(Number(details.hybrid_boost || 0)) ? Number(details.hybrid_boost || 0) : 0).toFixed(2),
                 ),
               );
             }),

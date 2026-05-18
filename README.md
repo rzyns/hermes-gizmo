@@ -77,7 +77,7 @@ tool_slimmer:
   include_mcp_tools: true
   include_native_tools: true
   log_decisions: true
-  min_total_tools: 20
+  min_total_tools: 0
   min_estimated_reduction_percent: 5.0
   aliases:
     browse: [browser, navigate, url, website]
@@ -136,7 +136,7 @@ If none exists, active schema slimming requires the installer/core patch to add 
 - `tool_slimmer_request_full_tools` is always kept available when Hermes has registered it. If a skill or task needs a hidden tool, the model can call it to make the next provider request use the full schema list instead of inventing a substitute workflow.
 - `top_k` applies after `always_include`; always-included tools do not count against the `top_k` budget. `top_k: 0` is treated as an explicit request to select no ranked tools, so it does not fail open to the full catalog.
 - `disabled_tools`, `disabled_toolsets`, `include_mcp_tools`, and `include_native_tools` are respected before ranking.
-- `min_total_tools` skips catalogs with fewer than that many tools before ranking; equality is allowed to slim.
+- `min_total_tools` skips catalogs with fewer than that many tools before ranking; equality is allowed to slim. The default is `0` so subagents and restricted toolsets still get ranked.
 - `min_estimated_reduction_percent` fails open after ranking if the estimated schema reduction is too small to justify altering the request. In `anthropic_tool_search` mode, this guardrail is measured against the hot tool set because deferred tools are discoverable rather than eagerly loaded.
 - `fail_open: true` sends the original schema list on selector errors.
 

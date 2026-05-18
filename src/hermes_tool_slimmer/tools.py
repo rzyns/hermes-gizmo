@@ -46,9 +46,6 @@ def _resolve_schemas(args: dict[str, Any], kwargs: dict[str, Any]) -> tuple[list
     provided = args.get("schemas") or kwargs.get("schemas")
     if isinstance(provided, list) and provided:
         return provided, "provided"
-    last_live = IndexStore().load_live_schemas()
-    if last_live:
-        return last_live, "live_request"
     live = _live_hermes_schemas()
     if live:
         try:
@@ -56,6 +53,9 @@ def _resolve_schemas(args: dict[str, Any], kwargs: dict[str, Any]) -> tuple[list
         except Exception:
             pass
         return live, "live"
+    last_live = IndexStore().load_live_schemas()
+    if last_live:
+        return last_live, "live_request"
     indexed = _indexed_schemas()
     if indexed:
         return indexed, "index"

@@ -29,7 +29,7 @@ tool_slimmer:
     - write_file
     - patch
     - search_files
-  min_total_tools: 20
+  min_total_tools: 0
   min_estimated_reduction_percent: 5.0
   fail_open: true
   dry_run: true
@@ -37,7 +37,7 @@ tool_slimmer:
 
 Start with `dry_run: true`. This lets you inspect selections without changing provider requests.
 
-`min_total_tools` and `min_estimated_reduction_percent` are low-overhead guardrails. `min_total_tools` skips catalogs with fewer than that many tools; equality is allowed to slim. These guardrails are especially useful for cron jobs and other short tool catalogs where the schema savings may not justify changing the request.
+`min_total_tools` and `min_estimated_reduction_percent` are low-overhead guardrails. `min_total_tools` skips catalogs with fewer than that many tools; equality is allowed to slim. The default is `0` so subagents and restricted toolsets are still ranked. Raise it only for paths where small catalogs are not worth changing.
 
 Tool Slimmer keeps `tool_slimmer_request_full_tools` available in trimmed requests. If a skill needs a hidden tool, the model can call that fallback tool and the next model request will receive the full Hermes tool schema list.
 

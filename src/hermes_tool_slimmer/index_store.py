@@ -52,7 +52,7 @@ class IndexStore:
         self.live_schemas_path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
         return payload
 
-    def load_live_schemas(self, min_total_tools: int = 20, require_session: bool = True) -> list[Schema]:
+    def load_live_schemas(self, min_total_tools: int = 0, require_session: bool = True) -> list[Schema]:
         if not self.live_schemas_path.exists():
             return []
         try:
@@ -67,7 +67,12 @@ class IndexStore:
         if require_session and (not isinstance(context, dict) or not context.get("session_id")):
             return []
         schemas = payload.get("schemas")
-        return schemas if isinstance(schemas, list) else []
+        if not isinstance(schemas, list):
+            return []
+        checksum = payload.get("checksum")
+        if isinstance(checksum, str) and checksum != self.checksum(schemas):
+            return []
+        return schemas
 
     def rebuild(self, schemas: list[Schema]) -> dict[str, Any]:
         docs = build_corpus(schemas)

@@ -87,6 +87,13 @@ def _check(status: str, message: str, detail: object | None = None) -> dict[str,
     return item
 
 
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def analyze_config(cfg: ToolSlimmerConfig, summary: dict[str, object] | None = None, indexed_tools: int = 0) -> dict[str, object]:
     totals = (summary or {}).get("totals") if isinstance(summary, dict) else {}
     averages = (summary or {}).get("averages") if isinstance(summary, dict) else {}
@@ -167,8 +174,7 @@ def eval_prompts(cfg: ToolSlimmerConfig, schemas: list[dict[str, Any]], prompts:
         if result.fail_open:
             fail_open_count += 1
         total_selected += len(result.selected_names)
-        reduction_value = metrics.get("estimated_reduction_percent")
-        total_reduction += float(reduction_value) if isinstance(reduction_value, (int, float, str)) else 0.0
+        total_reduction += _safe_float(metrics.get("estimated_reduction_percent"))
         rows.append({"name": prompt.get("name"), "selected": result.selected_names, "expected_included": hit, "reduction_percent": metrics["estimated_reduction_percent"], "fail_open": result.fail_open, "reason": result.reason})
     expected_rows = [row for row in rows if row["expected_included"] is not None]
     return {

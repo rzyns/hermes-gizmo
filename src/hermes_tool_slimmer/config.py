@@ -40,7 +40,7 @@ class ToolSlimmerConfig:
     log_decisions: bool = True
     fail_open: bool = True
     dry_run: bool = False
-    min_total_tools: int = 20
+    min_total_tools: int = 0
     min_estimated_reduction_percent: float = 5.0
     aliases: dict[str, list[str]] = field(default_factory=dict)
     anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
@@ -142,6 +142,13 @@ def load_config(path: str | Path | None = None) -> ToolSlimmerConfig:
     target = Path(path).expanduser() if path else config_path()
     if not target.is_file():
         return ToolSlimmerConfig()
-    data = yaml.safe_load(target.read_text()) or {}
+    try:
+        data = yaml.safe_load(target.read_text()) or {}
+    except yaml.YAMLError:
+        return ToolSlimmerConfig()
+    if not isinstance(data, dict):
+        return ToolSlimmerConfig()
     section = data.get("tool_slimmer", data if "mode" in data else {})
+    if not isinstance(section, dict):
+        return ToolSlimmerConfig()
     return ToolSlimmerConfig.from_mapping(section)

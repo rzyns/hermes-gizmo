@@ -31,7 +31,10 @@ def _load_modules():
 def _summarize_index(store: Any) -> dict[str, Any]:
     index = store.load() or {}
     documents = index.get("documents") if isinstance(index.get("documents"), list) else []
-    updated_at = store.path.stat().st_mtime if store.path.exists() else None
+    try:
+        updated_at = store.path.stat().st_mtime
+    except OSError:
+        updated_at = None
     return {
         "path": str(store.path),
         "exists": bool(index),
@@ -105,11 +108,19 @@ def _live_hermes_schemas() -> tuple[list[dict[str, Any]], str]:
 @router.get("/status")
 async def status() -> dict[str, Any]:
     _analyze_config, _eval_markdown, _eval_prompts, _privacy_inventory, run_doctor, load_config, IndexStore, _read_decisions, _summarize_decisions = _load_modules()
-    cfg = load_config()
+    config_error = None
+    try:
+        cfg = load_config()
+    except Exception as exc:
+        from hermes_tool_slimmer.config import ToolSlimmerConfig
+
+        cfg = ToolSlimmerConfig(enabled=False)
+        config_error = str(exc)
     store = IndexStore()
     index = store.load() or {}
     return {
-        "ok": True,
+        "ok": config_error is None,
+        "error": config_error,
         "config": {
             "enabled": cfg.enabled,
             "mode": cfg.mode,
@@ -180,7 +191,13 @@ async def events(limit: int = Query(default=100, ge=1, le=1000)) -> dict[str, An
 @router.get("/advisor")
 async def advisor(limit: int = Query(default=1000, ge=1, le=10000)) -> dict[str, Any]:
     analyze_config, _eval_markdown, _eval_prompts, _privacy_inventory, _run_doctor, load_config, IndexStore, _read_decisions, summarize_decisions = _load_modules()
-    cfg = load_config()
+    try:
+        cfg = load_config()
+    except Exception as exc:
+        from hermes_tool_slimmer.config import ToolSlimmerConfig
+
+        cfg = ToolSlimmerConfig(enabled=False)
+        return {"ok": False, "error": str(exc), "advisor": analyze_config(cfg, summarize_decisions(limit=limit, require_session=True), 0)}
     index = IndexStore().load() or {}
     return {"ok": True, "advisor": analyze_config(cfg, summarize_decisions(limit=limit, require_session=True), _safe_int(index.get("total_tools")))}
 
@@ -219,5 +236,11 @@ async def eval_report() -> dict[str, Any]:
         prompts_path = repo_root / "examples" / "prompts.yaml"
     schemas = _load_example_list(schemas_path, "tools")
     prompts = _load_example_list(prompts_path, "prompts")
-    report = eval_prompts(load_config(), schemas, prompts)
+    try:
+        cfg = load_config()
+    except Exception:
+        from hermes_tool_slimmer.config import ToolSlimmerConfig
+
+        cfg = ToolSlimmerConfig(enabled=False)
+    report = eval_prompts(cfg, schemas, prompts)
     return {"ok": True, "markdown": eval_markdown(report), "report": report}

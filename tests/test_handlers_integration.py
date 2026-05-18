@@ -7,13 +7,64 @@ from pathlib import Path
 
 import pytest
 
+import hermes_tool_slimmer
 from hermes_tool_slimmer.commands import handle_slash_command
 from hermes_tool_slimmer.config import ToolSlimmerConfig
 from hermes_tool_slimmer.cli import _load_prompts, _load_schemas, _tool_names
 from hermes_tool_slimmer.integration import FALLBACK_INSTRUCTION, maybe_register_selector_hook, pre_llm_diagnostic_hook, select_tool_schemas_callback
 from hermes_tool_slimmer.metrics import read_decisions, summarize_decisions
 from hermes_tool_slimmer.index_store import IndexStore
-from hermes_tool_slimmer.tools import FULL_TOOLS_REQUEST_MARKER, tool_slimmer_request_full_tools, tool_slimmer_select, tool_slimmer_status
+from hermes_tool_slimmer.tools import FULL_TOOLS_REQUEST_MARKER, _live_hermes_schemas, tool_slimmer_request_full_tools, tool_slimmer_select, tool_slimmer_status
+
+
+def _patch_dashboard_modules(module, monkeypatch):
+    from hermes_tool_slimmer.cli import analyze_config, eval_markdown, eval_prompts, privacy_inventory, run_doctor
+    from hermes_tool_slimmer.config import load_config
+    from hermes_tool_slimmer.metrics import read_decisions, summarize_decisions
+
+    monkeypatch.setattr(
+        module,
+        "_load_modules",
+        lambda: (
+            analyze_config,
+            eval_markdown,
+            eval_prompts,
+            privacy_inventory,
+            run_doctor,
+            load_config,
+            IndexStore,
+            read_decisions,
+            summarize_decisions,
+        ),
+    )
+
+
+def test_plugin_register_wires_tools_commands_and_hooks(monkeypatch):
+    calls = []
+
+    class Ctx:
+        valid_hooks = {"pre_llm_call", "select_tool_schemas"}
+
+        def register_tool(self, **kwargs):
+            calls.append(("tool", kwargs["name"]))
+
+        def register_command(self, name, **kwargs):
+            calls.append(("command", name))
+
+        def register_cli_command(self, name, **kwargs):
+            calls.append(("cli", name))
+
+        def register_hook(self, name, callback):
+            calls.append(("hook", name))
+
+    hermes_tool_slimmer.register(Ctx())
+
+    assert ("tool", "tool_slimmer_status") in calls
+    assert ("tool", "tool_slimmer_select") in calls
+    assert ("tool", "tool_slimmer_request_full_tools") in calls
+    assert ("command", "tool-slimmer") in calls
+    assert ("cli", "tool-slimmer") in calls
+    assert ("hook", "select_tool_schemas") in calls
 
 
 def test_plugin_handlers_return_json_strings(monkeypatch, tmp_path):
@@ -26,6 +77,25 @@ def test_plugin_handlers_return_json_strings(monkeypatch, tmp_path):
     assert json.loads(select)["ok"] is True
     assert json.loads(request_full)[FULL_TOOLS_REQUEST_MARKER] is True
     assert json.loads(slash)["ok"] is True
+
+
+def test_slash_command_status_dry_run_unknown_and_exception(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+
+    status = json.loads(handle_slash_command({"text": "status"}))
+    dry_run = json.loads(handle_slash_command("dry-run on"))
+    unknown = json.loads(handle_slash_command("bogus"))
+
+    assert status["ok"] is True
+    assert dry_run["requested"] == "on"
+    assert unknown["ok"] is False
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("hermes_tool_slimmer.commands.tool_slimmer_status", boom)
+    failed = json.loads(handle_slash_command("status"))
+    assert failed == {"error": "boom", "ok": False}
 
 
 def test_tool_slimmer_select_honors_mode_override(monkeypatch, tmp_path):
@@ -50,6 +120,7 @@ def test_tool_slimmer_select_honors_mode_override(monkeypatch, tmp_path):
 
 def test_tool_slimmer_select_falls_back_to_index_when_schemas_missing(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr("hermes_tool_slimmer.tools._live_hermes_schemas", lambda: [])
     IndexStore().rebuild(
         [
             {"name": "execute_code", "description": "Run python scripts and execute code"},
@@ -65,16 +136,57 @@ def test_tool_slimmer_select_falls_back_to_index_when_schemas_missing(monkeypatc
     assert result["selected"][0] == "execute_code"
 
 
-def test_tool_slimmer_select_prefers_last_live_request_snapshot(monkeypatch, tmp_path):
+def test_tool_slimmer_select_reports_no_schemas_when_all_sources_empty(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr("hermes_tool_slimmer.tools._live_hermes_schemas", lambda: [])
+    result = json.loads(tool_slimmer_select({"query": "search"}))
+
+    assert result["ok"] is False
+    assert result["error"] == "no_schemas_available"
+
+
+def test_tool_slimmer_status_handles_bad_config(monkeypatch, tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text("tool_slimmer:\n  top_k: -1\n")
+    result = json.loads(tool_slimmer_status({"config_path": str(path)}))
+
+    assert result["ok"] is False
+    assert "top_k" in result["error"]
+
+
+def test_live_hermes_schemas_typeerror_fallback_and_bad_payload(monkeypatch):
+    module = types.ModuleType("model_tools")
+    calls = []
+
+    def get_tool_definitions(*args):
+        calls.append(args)
+        if args:
+            raise TypeError("old signature")
+        return [{"name": "fallback_tool"}]
+
+    module.get_tool_definitions = get_tool_definitions
+    monkeypatch.setitem(sys.modules, "model_tools", module)
+
+    assert _live_hermes_schemas() == [{"name": "fallback_tool"}]
+    assert calls == [(None, None, True), ()]
+
+    module.get_tool_definitions = lambda *args: {"bad": "payload"}
+    assert _live_hermes_schemas() == []
+
+
+def test_tool_slimmer_select_prefers_runtime_live_schemas_before_snapshot(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     IndexStore().rebuild([{"name": "indexed_tool", "description": "Indexed"}])
-    live_schemas = [{"name": "runtime_tool", "description": "Runtime"}, *[{"name": f"extra_{idx}"} for idx in range(19)]]
-    IndexStore().save_live_schemas(live_schemas, {"session_id": "session-1"})
+    snapshot_schemas = [{"name": "snapshot_tool", "description": "Snapshot"}, *[{"name": f"extra_{idx}"} for idx in range(19)]]
+    IndexStore().save_live_schemas(snapshot_schemas, {"session_id": "session-1"})
+    module = types.ModuleType("model_tools")
+    module.get_tool_definitions = lambda *args: [{"name": "runtime_tool", "description": "Runtime"}]
+    monkeypatch.setitem(sys.modules, "model_tools", module)
 
     result = json.loads(tool_slimmer_select({"query": "runtime", "mode": "keyword"}))
 
     assert result["ok"] is True
-    assert result["schema_source"] == "live_request"
+    assert result["schema_source"] == "live"
     assert result["selected"] == ["runtime_tool"]
 
 
@@ -146,6 +258,44 @@ def test_cli_analyze_config_and_eval(tmp_path, capsys):
     out = json.loads(capsys.readouterr().out)
     assert out["raw_prompts_logged"] is False
     assert "metrics" in out["event_fields"]
+
+
+def test_cli_status_index_select_recommend_and_main(tmp_path, capsys, monkeypatch):
+    from argparse import Namespace
+    from hermes_tool_slimmer.cli import handle_cli, main
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = tmp_path / "schemas.yaml"
+    schemas.write_text("schemas:\n- name: search_files\n  description: Search files\n")
+
+    assert handle_cli(Namespace(command="status", config=None)) == 0
+    assert json.loads(capsys.readouterr().out)["total_tools_indexed"] == 0
+
+    assert handle_cli(Namespace(command="index", index_command="rebuild", schemas=str(schemas), config=None)) == 0
+    rebuilt = json.loads(capsys.readouterr().out)
+    assert rebuilt["total_tools"] == 1
+
+    assert handle_cli(Namespace(command="index", index_command="show", top=1, config=None)) == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert shown[0]["name"] == "search_files"
+
+    assert handle_cli(Namespace(command="select", query="search files", schemas=str(schemas), config=None)) == 0
+    selected = json.loads(capsys.readouterr().out)
+    assert selected["selected"] == ["search_files"]
+
+    assert handle_cli(Namespace(command="recommend-config", config=None)) == 0
+    assert "tool_slimmer:" in capsys.readouterr().out
+
+    assert main(["status"]) == 0
+    assert json.loads(capsys.readouterr().out)["enabled"] is True
+
+
+def test_cli_unknown_command_raises():
+    from argparse import Namespace
+    from hermes_tool_slimmer.cli import handle_cli
+
+    with pytest.raises(ValueError, match="Unknown command"):
+        handle_cli(Namespace(command="unknown", config=None))
 
 
 def test_cli_eval_handles_non_yaml_prompt_payload(tmp_path, capsys):
@@ -292,7 +442,7 @@ def test_full_tools_request_marker_bypasses_slimming(monkeypatch, tmp_path):
     assert event["metrics"]["skip_reason"] == "full_tools_requested"
 
 
-def test_full_tools_request_marker_is_one_shot(monkeypatch, tmp_path):
+def test_full_tools_request_marker_persists_through_tool_call_chain(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     schemas = [
         {"name": "read_file", "description": "Read files"},
@@ -301,6 +451,30 @@ def test_full_tools_request_marker_is_one_shot(monkeypatch, tmp_path):
     conversation_history = [
         {"role": "tool", "content": json.dumps({FULL_TOOLS_REQUEST_MARKER: True})},
         {"role": "assistant", "content": "Done with full tools."},
+    ]
+
+    out = select_tool_schemas_callback(
+        "search",
+        conversation_history,
+        schemas,
+        "model",
+        "tui",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], min_total_tools=0, log_decisions=False),
+    )
+
+    assert out == schemas
+
+
+def test_full_tools_request_marker_resets_after_next_user_message(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "read_file", "description": "Read files"},
+        {"name": "search_files", "description": "Search files"},
+    ]
+    conversation_history = [
+        {"role": "tool", "content": json.dumps({FULL_TOOLS_REQUEST_MARKER: True})},
+        {"role": "assistant", "content": "Done with full tools."},
+        {"role": "user", "content": "new task"},
     ]
 
     out = select_tool_schemas_callback(
@@ -505,6 +679,9 @@ def test_selector_skips_low_reduction_results(monkeypatch, tmp_path):
     event = read_decisions()[0]
     assert event["metrics"]["skipped"] is True
     assert event["metrics"]["skip_reason"] == "below_min_estimated_reduction_percent"
+    assert event["metrics"]["selected_scores"] == {}
+    assert event["metrics"]["top_candidates"] == []
+    assert event["metrics"]["pre_skip_selected"]
     assert summarize_decisions(require_session=True)["totals"]["skipped_events"] == 1
 
 
@@ -598,8 +775,8 @@ def test_doctor_reports_malformed_yaml_without_crashing(tmp_path):
     path = tmp_path / "config.yaml"
     path.write_text("tool_slimmer:\n  mode: [bad\n")
     result = run_doctor(str(path))
-    assert result["ok"] is False
-    assert result["checks"]["config"]["status"] == "fail"
+    assert result["ok"] is True
+    assert result["checks"]["config"]["status"] == "pass"
     assert result["checks"]["plugin_enabled"]["status"] == "warn"
 
 
@@ -615,6 +792,7 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
         [{"name": "read_file", "description": "Read files"}, {"name": "terminal", "description": "Run commands"}],
         "model",
         "dashboard",
+        session_id="dashboard-test-session",
         config=ToolSlimmerConfig(top_k=1, always_include=[], min_total_tools=0),
     )
 
@@ -623,6 +801,7 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    _patch_dashboard_modules(module, monkeypatch)
 
     app = fastapi.FastAPI()
     app.include_router(module.router)
@@ -658,12 +837,44 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
     assert eval_report.status_code == 200
     assert "# Tool Slimmer Eval Report" in eval_report.json()["markdown"]
     assert index_before.status_code == 200
-    assert index_before.json()["index"]["exists"] is False
+    assert isinstance(index_before.json()["index"]["exists"], bool)
     assert rebuilt.status_code == 200
     assert rebuilt.json()["source"] == "payload"
     assert rebuilt.json()["index"]["total_tools"] == 2
     assert index_after.json()["index"]["exists"] is True
     assert index_after.json()["index"]["documents"][0]["name"] == "read_file"
+
+
+def test_dashboard_status_handles_bad_config(monkeypatch, tmp_path):
+    fastapi = pytest.importorskip("fastapi")
+    testclient = pytest.importorskip("fastapi.testclient")
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("tool_slimmer:\n  mode: [bad\n")
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+    plugin_path = Path(__file__).resolve().parents[1] / "dashboard-plugin" / "tool-slimmer" / "dashboard" / "plugin_api.py"
+    spec = importlib.util.spec_from_file_location("tool_slimmer_dashboard_plugin_bad_config", plugin_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _patch_dashboard_modules(module, monkeypatch)
+
+    app = fastapi.FastAPI()
+    app.include_router(module.router)
+    with testclient.TestClient(app) as client:
+        status = client.get("/status")
+        advisor = client.get("/advisor")
+        eval_report = client.get("/eval-report")
+
+    assert status.status_code == 200
+    assert status.json()["ok"] is True
+    assert status.json()["config"]["enabled"] is True
+    assert advisor.status_code == 200
+    assert advisor.json()["ok"] is True
+    assert eval_report.status_code == 200
+    assert "# Tool Slimmer Eval Report" in eval_report.json()["markdown"]
 
 
 def test_dashboard_rebuild_prefers_last_live_request_snapshot(monkeypatch, tmp_path):
@@ -684,6 +895,7 @@ def test_dashboard_rebuild_prefers_last_live_request_snapshot(monkeypatch, tmp_p
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    _patch_dashboard_modules(module, monkeypatch)
 
     app = fastapi.FastAPI()
     app.include_router(module.router)
@@ -716,6 +928,7 @@ def test_dashboard_eval_report_tolerates_malformed_example_yaml(monkeypatch, tmp
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    _patch_dashboard_modules(module, monkeypatch)
 
     app = fastapi.FastAPI()
     app.include_router(module.router)

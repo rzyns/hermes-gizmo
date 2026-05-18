@@ -12,7 +12,7 @@ Run `hermes tool-slimmer doctor`. If the core selector hook is unavailable, Herm
 
 On Hermes Agent v0.14.0, use Tool Slimmer v0.4.0 or newer and rerun `scripts/install-hermes-tool-slimmer.sh` so the installer applies the modular core patch. Older Tool Slimmer releases targeted the previous `run_agent.py` request path and will not actively slim v0.14.0 provider requests.
 
-Also check `tool_slimmer.min_total_tools` and `tool_slimmer.min_estimated_reduction_percent`. By default, Tool Slimmer skips catalogs with fewer than 20 tools and skips ranked selections under 5% estimated schema reduction. This is intentional for cron/small-toolset paths where the overhead is not worth the tiny savings.
+Also check `tool_slimmer.min_total_tools` and `tool_slimmer.min_estimated_reduction_percent`. By default, Tool Slimmer ranks even small catalogs (`min_total_tools: 0`) so subagents and restricted toolsets still benefit, then skips ranked selections under 5% estimated schema reduction. Raise `min_total_tools` only for cron/small-toolset paths where the overhead is not worth the tiny savings.
 
 In `anthropic_tool_search` mode, reduction metrics and the reduction guardrail use the hot set of immediately loaded tools. The dashboard still records Anthropic payload and deferred-tool counts so you can confirm defer loading is active.
 

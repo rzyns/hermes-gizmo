@@ -9,6 +9,7 @@ def test_config_defaults():
     assert cfg.enabled is True
     assert cfg.mode == "keyword"
     assert cfg.top_k == 8
+    assert cfg.min_total_tools == 0
 
 
 def test_config_full_mapping_and_nested_anthropic():
@@ -97,3 +98,13 @@ def test_load_config_reads_tool_slimmer_section(tmp_path):
 def test_load_config_directory_path_returns_defaults(tmp_path):
     cfg = load_config(tmp_path)
     assert cfg.mode == "keyword"
+
+
+def test_load_config_malformed_yaml_returns_defaults(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text("  bad: yaml: here:\n  :invalid\n")
+
+    cfg = load_config(path)
+
+    assert cfg.mode == "keyword"
+    assert cfg.min_total_tools == 0
