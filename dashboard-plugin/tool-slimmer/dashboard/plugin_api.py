@@ -66,11 +66,7 @@ def _last_live_request_schemas() -> list[dict[str, Any]]:
     return schemas if schemas and all(isinstance(schema, dict) for schema in schemas) else []
 
 
-def _live_hermes_schemas() -> tuple[list[dict[str, Any]], str]:
-    last_live = _last_live_request_schemas()
-    if last_live:
-        return last_live, "live_request"
-
+def _hermes_tool_definitions() -> list[dict[str, Any]]:
     try:
         from model_tools import get_tool_definitions  # type: ignore[import-not-found]
     except Exception as exc:  # pragma: no cover - Hermes environment dependent
@@ -102,7 +98,29 @@ def _live_hermes_schemas() -> tuple[list[dict[str, Any]], str]:
             status_code=400,
             detail={"error": "invalid_tool_definitions", "message": "Hermes returned an unexpected tool definition payload."},
         )
-    return schemas, "hermes"
+    return schemas
+
+
+def _live_hermes_schemas() -> tuple[list[dict[str, Any]], str]:
+    candidates: list[tuple[list[dict[str, Any]], str]] = []
+    hermes_error: HTTPException | None = None
+    try:
+        schemas = _hermes_tool_definitions()
+    except HTTPException as exc:
+        hermes_error = exc
+    else:
+        candidates.append((schemas, "hermes"))
+    last_live = _last_live_request_schemas()
+    if last_live:
+        candidates.append((last_live, "live_request"))
+    if candidates:
+        return max(candidates, key=lambda item: len(item[0]))
+    if hermes_error is not None:
+        raise hermes_error
+    raise HTTPException(
+        status_code=400,
+        detail={"error": "tool_definitions_unavailable", "message": "No Hermes tool definitions or live request snapshot are available."},
+    )
 
 
 @router.get("/status")
@@ -168,6 +186,19 @@ async def rebuild_index(payload: dict[str, Any] | None = Body(default=None)) -> 
         )
 
     store = IndexStore()
+    current = store.load() or {}
+    current_total = _safe_int(current.get("total_tools"))
+    if raw_schemas is None and current_total > len(schemas):
+        return {
+            "ok": True,
+            "source": source,
+            "preserved_existing_index": True,
+            "message": (
+                f"Rebuild source only exposed {len(schemas)} tools; preserved existing {current_total}-tool index "
+                "to avoid replacing a fuller live gateway catalog with a smaller standalone catalog."
+            ),
+            "index": _summarize_index(store),
+        }
     store.rebuild(schemas)
     return {"ok": True, "source": source, "index": _summarize_index(store)}
 

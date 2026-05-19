@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.4 - 2026-05-19
+
+Dashboard index reliability release.
+
+### Fixed
+
+- Dashboard "Rebuild From Hermes Tools" now chooses the largest available runtime catalog between Hermes tool definitions and the last live request snapshot.
+- Dashboard rebuild now preserves an existing larger index instead of replacing it with a smaller standalone catalog, preventing full gateway catalogs from shrinking after cron/subagent snapshots or incomplete standalone `model_tools` discovery.
+
 ## 0.4.3 - 2026-05-19
 
 Installer reliability release.

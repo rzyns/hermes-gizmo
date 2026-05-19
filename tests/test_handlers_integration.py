@@ -877,7 +877,7 @@ def test_dashboard_status_handles_bad_config(monkeypatch, tmp_path):
     assert "# Tool Slimmer Eval Report" in eval_report.json()["markdown"]
 
 
-def test_dashboard_rebuild_prefers_last_live_request_snapshot(monkeypatch, tmp_path):
+def test_dashboard_rebuild_uses_largest_available_runtime_catalog(monkeypatch, tmp_path):
     fastapi = pytest.importorskip("fastapi")
     testclient = pytest.importorskip("fastapi.testclient")
 
@@ -896,6 +896,72 @@ def test_dashboard_rebuild_prefers_last_live_request_snapshot(monkeypatch, tmp_p
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     _patch_dashboard_modules(module, monkeypatch)
+    monkeypatch.setattr(module, "_hermes_tool_definitions", lambda: [{"name": "full_runtime_tool", "description": "Full runtime tool"}])
+
+    app = fastapi.FastAPI()
+    app.include_router(module.router)
+    with testclient.TestClient(app) as client:
+        rebuilt = client.post("/index/rebuild")
+
+    assert rebuilt.status_code == 200
+    assert rebuilt.json()["source"] == "live_request"
+    assert rebuilt.json()["index"]["total_tools"] == 20
+    assert rebuilt.json()["index"]["documents"][0]["name"] == "runtime_tool"
+
+
+def test_dashboard_rebuild_preserves_existing_larger_index(monkeypatch, tmp_path):
+    fastapi = pytest.importorskip("fastapi")
+    testclient = pytest.importorskip("fastapi.testclient")
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.delenv("HERMES_CONFIG", raising=False)
+    store = IndexStore()
+    store.rebuild([{"name": f"indexed_{idx}", "description": "Already indexed"} for idx in range(5)])
+
+    plugin_path = Path(__file__).resolve().parents[1] / "dashboard-plugin" / "tool-slimmer" / "dashboard" / "plugin_api.py"
+    spec = importlib.util.spec_from_file_location("tool_slimmer_dashboard_plugin_preserve_larger_index", plugin_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _patch_dashboard_modules(module, monkeypatch)
+    monkeypatch.setattr(module, "_hermes_tool_definitions", lambda: [{"name": "smaller_runtime_tool", "description": "Runtime"}])
+
+    app = fastapi.FastAPI()
+    app.include_router(module.router)
+    with testclient.TestClient(app) as client:
+        rebuilt = client.post("/index/rebuild")
+
+    assert rebuilt.status_code == 200
+    assert rebuilt.json()["source"] == "hermes"
+    assert rebuilt.json()["preserved_existing_index"] is True
+    assert rebuilt.json()["index"]["total_tools"] == 5
+    assert rebuilt.json()["index"]["documents"][0]["name"] == "indexed_0"
+
+
+def test_dashboard_rebuild_falls_back_to_last_live_request_snapshot(monkeypatch, tmp_path):
+    fastapi = pytest.importorskip("fastapi")
+    testclient = pytest.importorskip("fastapi.testclient")
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.delenv("HERMES_CONFIG", raising=False)
+    live_schemas = [
+        {"name": "runtime_tool", "description": "Runtime-only tool"},
+        {"name": "read_file", "description": "Read files"},
+        *[{"name": f"extra_{idx}", "description": "Extra"} for idx in range(18)],
+    ]
+    IndexStore().save_live_schemas(live_schemas, {"session_id": "session-1"})
+
+    plugin_path = Path(__file__).resolve().parents[1] / "dashboard-plugin" / "tool-slimmer" / "dashboard" / "plugin_api.py"
+    spec = importlib.util.spec_from_file_location("tool_slimmer_dashboard_plugin_live_snapshot_fallback", plugin_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _patch_dashboard_modules(module, monkeypatch)
+
+    def unavailable() -> list[dict[str, object]]:
+        raise module.HTTPException(status_code=400, detail={"error": "unavailable"})
+
+    monkeypatch.setattr(module, "_hermes_tool_definitions", unavailable)
 
     app = fastapi.FastAPI()
     app.include_router(module.router)
