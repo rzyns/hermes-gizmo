@@ -60,7 +60,7 @@ def test_selector_does_not_select_disabled_tools():
 def test_selector_skips_non_dict_schemas(caplog):
     cfg = ToolSlimmerConfig(top_k=1, always_include=[])
     with caplog.at_level("WARNING", logger="hermes_tool_slimmer.selector"):
-        result = ToolSelector(cfg).select("ok", [{"name": "ok_tool", "description": "ok"}, None])
+        result = ToolSelector(cfg).select("please use ok_tool", [{"name": "ok_tool", "description": "ok"}, None])
     assert result.selected_names == ["ok_tool"]
     assert "skipping non-dict tool schema" in caplog.text
 
@@ -255,6 +255,45 @@ def test_no_match_keeps_always_include_only():
     assert result.fail_open is False
     assert result.reason == "no_relevant_match"
     assert result.selected_names == ["terminal"]
+
+
+def test_weak_positive_matches_do_not_fill_top_k():
+    cfg = ToolSlimmerConfig(top_k=3, always_include=["terminal"], min_score=99.0)
+    result = ToolSelector(cfg).select("search", SCHEMAS)
+
+    assert result.reason is None
+    assert result.selected_names == ["terminal"]
+
+
+def test_low_information_greeting_keeps_only_always_include_and_safety():
+    cfg = ToolSlimmerConfig(top_k=4, always_include=["memory"])
+    schemas = [
+        {"name": "memory", "description": "Remember information"},
+        {"name": "tool_slimmer_request_full_tools", "description": "Request full tools"},
+        {"name": "terminal", "description": "Run shell commands"},
+        {"name": "cronjob", "description": "Schedule recurring jobs"},
+        {"name": "clarify", "description": "Ask a clarifying question"},
+    ]
+
+    result = ToolSelector(cfg).select("hello", schemas)
+
+    assert result.reason == "low_information_query"
+    assert result.selected_names == ["memory", "tool_slimmer_request_full_tools"]
+
+
+def test_numeric_retry_keeps_only_always_include_and_safety_without_recent_mentions():
+    cfg = ToolSlimmerConfig(top_k=4, always_include=["memory"])
+    schemas = [
+        {"name": "memory", "description": "Remember information"},
+        {"name": "tool_slimmer_request_full_tools", "description": "Request full tools"},
+        {"name": "terminal", "description": "Run shell commands"},
+        {"name": "cronjob", "description": "Schedule recurring jobs"},
+    ]
+
+    result = ToolSelector(cfg).select("12", schemas)
+
+    assert result.reason == "low_information_query"
+    assert result.selected_names == ["memory", "tool_slimmer_request_full_tools"]
 
 
 def test_repeated_query_tokens_are_deduplicated_before_scoring():

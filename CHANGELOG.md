@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0 - 2026-05-27
+
+Guided setup and profile tuning release.
+
+### Added
+
+- Platform profiles for Telegram, Slack, CLI/TUI, cron, and webhook entry points.
+- Advisor recommendations with plain-English setup checklist, recommended YAML, safe apply, config backups, and rollback support.
+- Dashboard Guided Setup card with one-click recommended config apply and backup visibility.
+- Low-information query handling so greetings, pings, thanks, and numeric nudges do not fill `top_k` with unrelated task tools.
+- Beginner-friendly setup docs and an agent-install prompt for users who do not want to run shell commands manually.
+
+### Changed
+
+- `always_exclude` is accepted as a user-facing alias for `disabled_tools`.
+- Dashboard status now exposes disabled tools, disabled toolsets, aliases, and profiles for easier troubleshooting.
+
 ## 0.4.7 - 2026-05-20
 
 Missing skill-tool fallback release.

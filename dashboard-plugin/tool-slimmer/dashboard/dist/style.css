@@ -85,3 +85,29 @@
   gap: 0.2rem;
   padding-bottom: 0.45rem;
 }
+
+.tool-slimmer-details {
+  border: 1px solid hsl(var(--border));
+  padding: 0.65rem;
+}
+
+.tool-slimmer-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tool-slimmer-pre {
+  font-family: var(--font-courier);
+  font-size: 0.72rem;
+  margin-top: 0.65rem;
+  max-height: 18rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.tool-slimmer-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}

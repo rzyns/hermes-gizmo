@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml
 
+from .advisor import apply_recommended_config, analyze_config as _advisor_analyze_config, current_advisor, dump_yaml, rollback_config
 from .anthropic_tool_search import supports_anthropic_tool_search
 from .config import ToolSlimmerConfig, config_path, load_config
 from .corpus import tool_name
@@ -95,29 +96,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
 
 
 def analyze_config(cfg: ToolSlimmerConfig, summary: dict[str, object] | None = None, indexed_tools: int = 0) -> dict[str, object]:
-    totals = (summary or {}).get("totals") if isinstance(summary, dict) else {}
-    averages = (summary or {}).get("averages") if isinstance(summary, dict) else {}
-    totals = totals if isinstance(totals, dict) else {}
-    averages = averages if isinstance(averages, dict) else {}
-    events = int(totals.get("events") or 0)
-    skipped = int(totals.get("skipped_events") or 0)
-    recommendations: list[dict[str, object]] = []
-    if events == 0:
-        recommendations.append({"id": "collect_data", "severity": "info", "message": "No real selector events are available yet; keep decision logging on until the dashboard has enough data."})
-    if len(cfg.always_include) > max(1, cfg.top_k):
-        recommendations.append({"id": "review_always_include", "severity": "warn", "message": "always_include is larger than top_k; confirm every always-on tool is truly required.", "tools": cfg.always_include})
-    if events and skipped / events > 0.5:
-        recommendations.append({"id": "review_guardrails", "severity": "warn", "message": "More than half of recent selections were skipped by guardrails; review min_total_tools and min_estimated_reduction_percent."})
-    if cfg.mode == "keyword" and not cfg.aliases:
-        recommendations.append({"id": "add_aliases", "severity": "info", "message": "Keyword mode is deterministic; add aliases for common user wording that differs from tool names."})
-    if indexed_tools == 0:
-        recommendations.append({"id": "rebuild_index", "severity": "info", "message": "The persisted tool index is empty; rebuild it from the dashboard after tool changes."})
-    return {
-        "ok": True,
-        "config": {"mode": cfg.mode, "top_k": cfg.top_k, "always_include": cfg.always_include, "min_total_tools": cfg.min_total_tools, "min_estimated_reduction_percent": cfg.min_estimated_reduction_percent, "aliases": cfg.aliases},
-        "observed": {"events": events, "skipped_events": skipped, "average_reduction_percent": averages.get("reduction_percent", 0), "indexed_tools": indexed_tools},
-        "recommendations": recommendations,
-    }
+    return _advisor_analyze_config(cfg, summary, indexed_tools)
 
 
 def privacy_inventory() -> dict[str, object]:
@@ -351,6 +330,10 @@ def setup_argparse(parser: argparse.ArgumentParser) -> None:
     eval_cmd.add_argument("--schemas")
     eval_cmd.add_argument("--markdown", action="store_true")
     sub.add_parser("analyze-config")
+    advisor = sub.add_parser("advisor")
+    advisor.add_argument("--apply", action="store_true", help="Apply the recommended config with a timestamped backup")
+    advisor.add_argument("--rollback", help="Restore a config backup created by advisor --apply")
+    advisor.add_argument("--limit", type=int, default=1000)
     sub.add_parser("privacy")
     sub.add_parser("recommend-config")
 
@@ -378,7 +361,7 @@ def handle_cli(args: argparse.Namespace) -> int:
     if args.command == "status":
         store = IndexStore()
         index = store.load() or {}
-        print(json.dumps({"enabled": cfg.enabled, "mode": cfg.mode, "top_k": cfg.top_k, "index_path": str(store.path), "total_tools_indexed": index.get("total_tools", 0), "core_integration": "active when Hermes exposes select_tool_schemas hook or applies docs/hermes-core-selector-hook.patch"}, indent=2))
+        print(json.dumps({"enabled": cfg.enabled, "mode": cfg.mode, "top_k": cfg.top_k, "min_score": cfg.min_score, "index_path": str(store.path), "total_tools_indexed": index.get("total_tools", 0), "core_integration": "active when Hermes exposes select_tool_schemas hook or applies docs/hermes-core-selector-hook.patch"}, indent=2))
         return 0
     if args.command == "index":
         store = IndexStore()
@@ -421,8 +404,24 @@ def handle_cli(args: argparse.Namespace) -> int:
         index = store.load() or {}
         print(json.dumps(analyze_config(cfg, summarize_decisions(require_session=True), int(index.get("total_tools") or 0)), indent=2, sort_keys=True))
         return 0
+    if args.command == "advisor":
+        if getattr(args, "rollback", None):
+            print(json.dumps(rollback_config(args.rollback, path=getattr(args, "config", None)), indent=2, sort_keys=True))
+            return 0
+        report = current_advisor(limit=getattr(args, "limit", 1000))
+        if getattr(args, "apply", False):
+            recommended_raw = report.get("recommended_config")
+            recommended = recommended_raw if isinstance(recommended_raw, dict) else None
+            applied = apply_recommended_config(
+                recommended,
+                path=getattr(args, "config", None),
+            )
+            print(json.dumps({"advisor": report, "apply": applied}, indent=2, sort_keys=True))
+            return 0
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
     if args.command == "recommend-config":
-        print(yaml.safe_dump({"tool_slimmer": {"enabled": True, "mode": "keyword", "top_k": 8, "always_include": cfg.always_include, "min_total_tools": cfg.min_total_tools, "min_estimated_reduction_percent": cfg.min_estimated_reduction_percent, "fail_open": True, "dry_run": False}}, sort_keys=False))
+        print(dump_yaml({"tool_slimmer": current_advisor().get("recommended_config", {})}))
         return 0
     raise ValueError(f"Unknown command {args.command}")
 

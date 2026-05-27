@@ -59,6 +59,38 @@ def test_config_normalizes_string_list_shorthand():
     assert cfg.anthropic.never_defer == ["read_file"]
 
 
+def test_config_accepts_always_exclude_alias():
+    cfg = ToolSlimmerConfig.from_mapping({"always_exclude": ["terminal", "cronjob"]})
+
+    assert cfg.disabled_tools == ["terminal", "cronjob"]
+    assert cfg.always_exclude == ["terminal", "cronjob"]
+
+
+def test_config_profiles_overlay_by_platform():
+    cfg = ToolSlimmerConfig.from_mapping(
+        {
+            "top_k": 8,
+            "always_include": ["terminal"],
+            "profiles": {
+                "telegram": {
+                    "top_k": 4,
+                    "always_include": ["memory"],
+                    "always_exclude": ["cronjob"],
+                },
+                "tui": {"top_k": 9},
+            },
+        }
+    )
+
+    telegram = cfg.for_context(platform="telegram")
+    cli = cfg.for_context(platform="tui")
+
+    assert telegram.top_k == 4
+    assert telegram.always_include == ["memory"]
+    assert telegram.disabled_tools == ["cronjob"]
+    assert cli.top_k == 9
+
+
 def test_config_rejects_invalid_structured_types():
     with pytest.raises(ValueError, match="always_include"):
         ToolSlimmerConfig.from_mapping({"always_include": {"terminal": True}})

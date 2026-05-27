@@ -90,6 +90,7 @@ def tool_slimmer_request_full_tools(args: dict, **kwargs: Any) -> str:
 def tool_slimmer_select(args: dict, **kwargs: Any) -> str:
     try:
         cfg = load_config(args.get("config_path"))
+        cfg = cfg.for_context(platform=args.get("platform"), profile=args.get("profile"))
         if args.get("mode") is not None:
             cfg = ToolSlimmerConfig.from_mapping(
                 {**cfg.__dict__, "mode": args.get("mode"), "anthropic": cfg.anthropic.__dict__}

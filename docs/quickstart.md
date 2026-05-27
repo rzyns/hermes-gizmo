@@ -94,6 +94,7 @@ tool_slimmer:
     - write_file
     - patch
     - search_files
+  always_exclude: []
   min_total_tools: 0
   min_estimated_reduction_percent: 5.0
   fail_open: true
@@ -105,6 +106,8 @@ Start with `dry_run: true`. This lets you inspect selections without changing pr
 `min_total_tools` and `min_estimated_reduction_percent` are low-overhead guardrails. `min_total_tools` skips catalogs with fewer than that many tools; equality is allowed to slim. The default is `0` so subagents and restricted toolsets are still ranked. Raise it only for paths where small catalogs are not worth changing.
 
 Tool Slimmer keeps `tool_slimmer_request_full_tools` available in trimmed requests. If a skill needs a hidden tool, the model can call that fallback tool and the next model request will receive the full Hermes tool schema list.
+
+Use `mode: keyword` first. `hybrid` only adds a deterministic fuzzy-token boost; it is not a semantic embedding mode. For broad general agents, keep `top_k` around `8`. For narrow Telegram or webhook processors, smaller values such as `4` can save more schema tokens, but add `always_include` for required tools and `always_exclude` for noisy tools such as `terminal` or `cronjob` when that entry point should never use them.
 
 ## 3. Check installation
 
@@ -119,7 +122,7 @@ scripts/troubleshoot-hermes-tool-slimmer.sh
 
 Dashboard savings are estimated schema-token savings, not invoice-grade billing numbers. They use serialized tool-schema JSON bytes divided by 4 before and after selection.
 
-Open the Hermes dashboard and use Tool Slimmer's **Tool Index** card to rebuild the index from the currently enabled Hermes tools. This is the easiest way to confirm what the plugin sees after installing or changing toolsets.
+Open the Hermes dashboard and use Tool Slimmer's **Tool Index** card to rebuild the index from the currently enabled Hermes tools. Then use **Guided Setup** -> **Apply Recommended Config** to create platform profiles with a config backup. This is the easiest way to confirm what the plugin sees after installing or changing toolsets.
 
 Run `hermes tool-slimmer eval --prompts examples/prompts.yaml --schemas examples/tools.yaml --markdown` to reproduce the public example evaluation report.
 

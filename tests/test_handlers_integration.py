@@ -6,8 +6,10 @@ import types
 from pathlib import Path
 
 import pytest
+import yaml
 
 import hermes_tool_slimmer
+from hermes_tool_slimmer.advisor import apply_recommended_config, apply_tool_preference, analyze_config, rollback_config
 from hermes_tool_slimmer.commands import handle_slash_command
 from hermes_tool_slimmer.config import ToolSlimmerConfig
 from hermes_tool_slimmer.cli import _load_prompts, _load_schemas, _tool_names
@@ -18,7 +20,7 @@ from hermes_tool_slimmer.tools import FULL_TOOLS_REQUEST_MARKER, _live_hermes_sc
 
 
 def _patch_dashboard_modules(module, monkeypatch):
-    from hermes_tool_slimmer.cli import analyze_config, eval_markdown, eval_prompts, privacy_inventory, run_doctor
+    from hermes_tool_slimmer.cli import eval_markdown, eval_prompts, privacy_inventory, run_doctor
     from hermes_tool_slimmer.config import load_config
     from hermes_tool_slimmer.metrics import read_decisions, summarize_decisions
 
@@ -27,6 +29,9 @@ def _patch_dashboard_modules(module, monkeypatch):
         "_load_modules",
         lambda: (
             analyze_config,
+            apply_recommended_config,
+            apply_tool_preference,
+            rollback_config,
             eval_markdown,
             eval_prompts,
             privacy_inventory,
@@ -908,6 +913,8 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
     assert events.json()["events"][0]["metrics"]["selected"] == ["read_file"]
     assert advisor.status_code == 200
     assert advisor.json()["advisor"]["ok"] is True
+    assert "recommended_yaml" in advisor.json()["advisor"]
+    assert isinstance(advisor.json()["advisor"]["setup_checklist"], list)
     assert privacy.status_code == 200
     assert privacy.json()["privacy"]["raw_prompts_logged"] is False
     assert eval_report.status_code == 200
@@ -919,6 +926,45 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
     assert rebuilt.json()["index"]["total_tools"] == 2
     assert index_after.json()["index"]["exists"] is True
     assert index_after.json()["index"]["documents"][0]["name"] == "read_file"
+
+
+def test_dashboard_advisor_apply_and_rollback(monkeypatch, tmp_path):
+    fastapi = pytest.importorskip("fastapi")
+    testclient = pytest.importorskip("fastapi.testclient")
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("plugins:\n  enabled: []\ntool_slimmer:\n  top_k: 8\n")
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+    plugin_path = Path(__file__).resolve().parents[1] / "dashboard-plugin" / "tool-slimmer" / "dashboard" / "plugin_api.py"
+    spec = importlib.util.spec_from_file_location("tool_slimmer_dashboard_plugin_apply", plugin_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _patch_dashboard_modules(module, monkeypatch)
+
+    app = fastapi.FastAPI()
+    app.include_router(module.router)
+    with testclient.TestClient(app) as client:
+        applied = client.post(
+            "/advisor/apply",
+            json={"recommended_config": {"enabled": True, "mode": "keyword", "top_k": 6, "always_include": ["memory"]}},
+        )
+        backup_path = applied.json()["backup_path"]
+        preference = client.post(
+            "/advisor/tool-preference",
+            json={"tool": "cronjob", "action": "always_exclude", "profile": "telegram"},
+        )
+        rolled_back = client.post("/advisor/rollback", json={"backup_path": backup_path})
+
+    assert applied.status_code == 200
+    assert yaml.safe_load(config_path.read_text())["tool_slimmer"]["top_k"] == 6
+    assert "tool-slimmer" in yaml.safe_load(config_path.read_text())["plugins"]["enabled"]
+    assert preference.status_code == 200
+    assert preference.json()["profile"] == "telegram"
+    assert rolled_back.status_code == 200
+    assert yaml.safe_load(config_path.read_text())["tool_slimmer"]["top_k"] == 8
 
 
 def test_dashboard_status_handles_bad_config(monkeypatch, tmp_path):

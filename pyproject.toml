@@ -27,7 +27,7 @@ artifacts = [
 
 [project]
 name = "hermes-tool-slimmer"
-version = "0.4.7"
+version = "0.5.0"
 description = "Reduce Hermes Agent tool schema overhead with provider-aware tool selection"
 readme = "README.md"
 license = { text = "MIT" }

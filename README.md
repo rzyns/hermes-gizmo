@@ -85,9 +85,9 @@ Then verify with:
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 ```
 
-For a guided setup, see [`docs/quickstart.md`](docs/quickstart.md). For the Hermes dashboard page, see [`docs/dashboard-plugin.md`](docs/dashboard-plugin.md).
+For a guided setup, see [`docs/guided-setup.md`](docs/guided-setup.md) and [`docs/quickstart.md`](docs/quickstart.md). For the Hermes dashboard page, see [`docs/dashboard-plugin.md`](docs/dashboard-plugin.md).
 
-The dashboard includes a **Tool Index** panel with a one-click **Rebuild From Hermes Tools** action, indexed-tool preview, path, checksum, and last-updated time. The persisted index is for inspection and troubleshooting; live slimming ranks the current request's Hermes schemas in memory.
+The dashboard includes a **Guided Setup** card, **Tool Index** panel, one-click **Rebuild From Hermes Tools** action, **Apply Recommended Config** button with backup creation, indexed-tool preview, path, checksum, and last-updated time. The persisted index is for inspection and troubleshooting; live slimming ranks the current request's Hermes schemas in memory.
 
 For a plain-English health report:
 
@@ -124,14 +124,27 @@ tool_slimmer:
   mode: keyword        # eager | keyword | hybrid | anthropic_tool_search
   top_k: 8             # selected after always_include
   always_include: [terminal, read_file, write_file, patch, search_files]
+  always_exclude: []   # alias for disabled_tools; useful for noisy tools in text-only deployments
   never_defer: [terminal, read_file]
   include_mcp_tools: true
   include_native_tools: true
   log_decisions: true
   min_total_tools: 0
   min_estimated_reduction_percent: 5.0
+  min_score: 0.25
   aliases:
     browse: [browser, navigate, url, website]
+  profiles:
+    telegram:
+      top_k: 4
+      always_include: [memory, tool_slimmer_request_full_tools]
+      always_exclude: [terminal, cronjob]
+    slack:
+      top_k: 6
+      always_include: [memory, read_file, search_files, tool_slimmer_request_full_tools]
+      always_exclude: [cronjob]
+    cli:
+      top_k: 8
   fail_open: true      # selector errors preserve the original full schema list
   dry_run: false       # true logs/injects diagnostics but does not alter schemas
 ```
@@ -148,6 +161,9 @@ hermes tool-slimmer benchmark --prompts examples/prompts.yaml --schemas examples
 hermes tool-slimmer eval --prompts examples/prompts.yaml --schemas examples/tools.yaml
 hermes tool-slimmer eval --prompts examples/prompts.yaml --schemas examples/tools.yaml --markdown
 hermes tool-slimmer analyze-config
+hermes tool-slimmer advisor
+hermes tool-slimmer advisor --apply
+hermes tool-slimmer advisor --rollback ~/.hermes/tool-slimmer/backups/config-YYYYmmdd-HHMMSS.yaml
 hermes tool-slimmer privacy
 hermes tool-slimmer recommend-config
 ```
@@ -184,9 +200,13 @@ If none exists, active schema slimming requires the installer/core patch to add 
 ## Safety model
 
 - `always_include` tools are selected first when present and not already disabled by Hermes.
+- `always_exclude` is a user-facing alias for `disabled_tools`. Use it when a tool is too noisy for a deployment and should only appear through Hermes outside Tool Slimmer's ranked set.
 - `tool_slimmer_request_full_tools` is always kept available when Hermes has registered it. If a skill or task needs a hidden tool, the model can call it to make the next provider request use the full schema list instead of inventing a substitute workflow.
 - `top_k` applies after `always_include`; always-included tools do not count against the `top_k` budget. `top_k: 0` is treated as an explicit request to select no ranked tools, so it does not fail open to the full catalog.
 - `disabled_tools`, `disabled_toolsets`, `include_mcp_tools`, and `include_native_tools` are respected before ranking.
+- `profiles` let Slack, Telegram, CLI, cron, and webhook entry points use different `top_k`, include, and exclude lists without making every user interface share the same tradeoff.
+- Low-information messages such as `hello`, `ping`, `thanks`, or numeric retry nudges do not rank task tools. They keep only `always_include` plus the full-tool fallback.
+- `min_score` prevents tiny positive keyword matches from filling every `top_k` slot.
 - `min_total_tools` skips catalogs with fewer than that many tools before ranking; equality is allowed to slim. The default is `0` so subagents and restricted toolsets still get ranked.
 - `min_estimated_reduction_percent` fails open after ranking if the estimated schema reduction is too small to justify altering the request. In `anthropic_tool_search` mode, this guardrail is measured against the hot tool set because deferred tools are discoverable rather than eagerly loaded.
 - `fail_open: true` sends the original schema list on selector errors.
@@ -194,6 +214,7 @@ If none exists, active schema slimming requires the installer/core patch to add 
 Keyword mode is intentionally mostly literal. It includes a small deterministic synonym map for common operation words such as browsing/navigation, but tool-specific synonyms should still be added to tool descriptions or handled by a semantic selector mode when available.
 - `aliases` extends keyword query expansion deterministically; aliases affect ranking and score details but do not rewrite stored tool schemas.
 - `hybrid` mode keeps BM25 ranking and adds a deterministic fuzzy-token boost for close spelling/wording misses.
+- For most installs, start with `mode: keyword` and `top_k: 8`. Lower values such as `top_k: 4` can work for narrow Telegram/webhook deployments, but they raise tool-miss risk unless paired with explicit `always_include` and `always_exclude` choices.
 - The standalone `tool_slimmer_select` tool uses provided schemas first, live Hermes tool definitions second, and the persisted index as a final fallback.
 - `dry_run: true` logs decisions and returns `None` to preserve original behavior.
 - Anthropic Tool Search helpers never defer every tool.

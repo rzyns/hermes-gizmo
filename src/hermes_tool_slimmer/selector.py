@@ -27,6 +27,27 @@ BUILTIN_ALIASES = {
     "website": ["web", "url", "page"],
 }
 
+LOW_INFORMATION_TOKENS = {
+    "hello",
+    "hi",
+    "hey",
+    "yo",
+    "sup",
+    "test",
+    "testing",
+    "ping",
+    "ok",
+    "okay",
+    "thanks",
+    "thank",
+    "you",
+    "yes",
+    "no",
+    "yep",
+    "nope",
+    "cool",
+}
+
 
 class ToolSelector:
     def __init__(self, config: ToolSlimmerConfig | None = None) -> None:
@@ -105,6 +126,19 @@ class ToolSelector:
                 selected_names.add(name)
                 always_present.append(name)
 
+        if _is_low_information_query(query_tokens):
+            return SelectionResult(
+                self.config.mode,
+                selected,
+                [tool_name(s) for s in selected],
+                scores,
+                len(schemas),
+                always_present,
+                reason="low_information_query",
+                score_details=score_details,
+                expanded_query_tokens=query_tokens,
+            )
+
         has_relevant_match = bool(query_tokens) and any(score > 0 for score in scores.values())
         if not has_relevant_match:
             if selected:
@@ -120,7 +154,8 @@ class ToolSelector:
                 break
             if doc.name in selected_names:
                 continue
-            if scores.get(doc.name, 0.0) <= 0 and selected:
+            score = scores.get(doc.name, 0.0)
+            if score < self.config.min_score:
                 continue
             selected.append(by_name[doc.name])
             selected_names.add(doc.name)
@@ -132,8 +167,8 @@ class ToolSelector:
                     selected.append(by_name[name])
                     selected_names.add(name)
 
-        if not selected and eligible and self.config.fail_open and self.config.top_k > 0:
-            return SelectionResult(self.config.mode, schemas, [tool_name(s) for s in schemas], scores, len(schemas), always_present, fail_open=True, reason="selector produced empty set", score_details=score_details, expanded_query_tokens=query_tokens)
+        if not selected and eligible and self.config.top_k > 0:
+            return SelectionResult(self.config.mode, selected, [], scores, len(schemas), always_present, reason="below_min_score", score_details=score_details, expanded_query_tokens=query_tokens)
         return SelectionResult(self.config.mode, selected, [tool_name(s) for s in selected], scores, len(schemas), always_present, score_details=score_details, expanded_query_tokens=query_tokens)
 
     @staticmethod
@@ -204,6 +239,17 @@ def _needs_skill_companions(query_tokens: list[str], selected_names: set[str]) -
     if {"skill_manage", "skill_view", "skills_list"} & selected_names:
         return True
     return bool({"skill", "skills", "skill_view", "skills_list"} & set(query_tokens))
+
+
+def _is_low_information_query(query_tokens: list[str]) -> bool:
+    if not query_tokens:
+        return False
+    meaningful = [token for token in query_tokens if not token.isdigit()]
+    if not meaningful:
+        return True
+    if len(meaningful) > 4:
+        return False
+    return all(token in LOW_INFORMATION_TOKENS for token in meaningful)
 
 
 def select_schemas(user_message: str, schemas: list[Schema], config: ToolSlimmerConfig | None = None, **kwargs: object) -> list[Schema]:

@@ -78,6 +78,8 @@
     const [evalBusy, setEvalBusy] = useState(false);
     const [evalReport, setEvalReport] = useState(null);
     const [evalError, setEvalError] = useState(null);
+    const [advisorBusy, setAdvisorBusy] = useState(false);
+    const [advisorMessage, setAdvisorMessage] = useState(null);
     const summary = data.summary || {};
     const totals = summary.totals || {};
     const averages = summary.averages || {};
@@ -90,6 +92,7 @@
     const advisor = data.advisor || {};
     const privacy = data.privacy || {};
     const recommendations = advisor.recommendations || [];
+    const setupChecklist = advisor.setup_checklist || [];
     const latestDecision = recent.length ? recent[recent.length - 1] : null;
     const latestMetrics = latestDecision && latestDecision.metrics ? latestDecision.metrics : {};
     const latestCandidates = latestDecision && latestDecision.metrics && latestDecision.metrics.top_candidates
@@ -131,12 +134,47 @@
       });
     }
 
+    function applyAdvisorConfig() {
+      setAdvisorBusy(true);
+      setAdvisorMessage(null);
+      SDK.fetchJSON("/api/plugins/tool-slimmer/advisor/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommended_config: advisor.recommended_config || null }),
+      }).then(function (result) {
+        setAdvisorMessage("Applied recommended config. Backup: " + String(result.backup_path || "created"));
+        data.reload();
+      }).catch(function (error) {
+        setAdvisorMessage(error && error.message ? error.message : "Advisor apply failed");
+      }).finally(function () {
+        setAdvisorBusy(false);
+      });
+    }
+
+    function setToolPreference(tool, action, profile) {
+      setAdvisorBusy(true);
+      setAdvisorMessage(null);
+      SDK.fetchJSON("/api/plugins/tool-slimmer/advisor/tool-preference", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: tool, action: action, profile: profile || "default" }),
+      }).then(function (result) {
+        setAdvisorMessage(String(tool) + " saved to " + String(action) + ". Backup: " + String(result.backup_path || "created"));
+        data.reload();
+      }).catch(function (error) {
+        setAdvisorMessage(error && error.message ? error.message : "Preference update failed");
+      }).finally(function () {
+        setAdvisorBusy(false);
+      });
+    }
+
     return React.createElement("div", { className: "tool-slimmer-page flex flex-col gap-6" },
       React.createElement("div", { className: "flex flex-wrap items-center justify-between gap-3" },
         React.createElement("div", { className: "flex flex-col gap-1" },
           React.createElement("div", { className: "flex flex-wrap items-center gap-2" },
             React.createElement("h1", { className: "text-xl font-semibold" }, "Tool Slimmer"),
             React.createElement(Badge, { variant: config.enabled ? "default" : "outline" }, config.enabled ? "enabled" : "disabled"),
+            advisor.status && React.createElement(Badge, { variant: advisor.status === "active" ? "default" : "outline" }, String(advisor.status).replaceAll("_", " ")),
             config.dry_run && React.createElement(Badge, { variant: "outline" }, "dry run"),
           ),
           React.createElement("div", { className: "tool-slimmer-muted text-sm" },
@@ -241,8 +279,24 @@
 
       React.createElement("div", { className: "grid gap-4 lg:grid-cols-2" },
         React.createElement(Card, null,
-          React.createElement(CardHeader, null, React.createElement(CardTitle, null, "Config Advisor")),
+          React.createElement(CardHeader, { className: "flex flex-row items-center justify-between gap-3" },
+            React.createElement(CardTitle, null, "Guided Setup"),
+            React.createElement(Button, { onClick: applyAdvisorConfig, disabled: advisorBusy }, advisorBusy ? "Applying" : "Apply Recommended Config"),
+          ),
           React.createElement(CardContent, { className: "grid gap-3 text-sm" },
+            advisor.summary && React.createElement("div", { className: "tool-slimmer-muted" }, advisor.summary),
+            setupChecklist.length > 0 && React.createElement("div", { className: "grid gap-2" },
+              setupChecklist.map(function (item) {
+                return React.createElement("div", { key: item.id, className: "flex items-start justify-between gap-3 border-b border-border pb-2" },
+                  React.createElement("div", null,
+                    React.createElement("div", { className: "font-medium" }, item.label || item.id),
+                    React.createElement("div", { className: "tool-slimmer-muted text-xs" }, item.message),
+                  ),
+                  React.createElement(Badge, { variant: item.status === "pass" ? "default" : "outline" }, item.status || "info"),
+                );
+              }),
+            ),
+            advisorMessage && React.createElement("div", { className: "tool-slimmer-muted text-xs" }, advisorMessage),
             recommendations.length === 0 && React.createElement("div", { className: "tool-slimmer-muted" }, "No recommendations from recent selector activity."),
             recommendations.map(function (item) {
               return React.createElement("div", { key: item.id, className: "flex items-start justify-between gap-3 border-b border-border pb-2" },
@@ -253,6 +307,10 @@
                 React.createElement(Badge, { variant: item.severity === "warn" ? "outline" : "default" }, item.severity || "info"),
               );
             }),
+            advisor.recommended_yaml && React.createElement("details", { className: "tool-slimmer-details" },
+              React.createElement("summary", null, "Recommended YAML"),
+              React.createElement("pre", { className: "tool-slimmer-pre" }, advisor.recommended_yaml),
+            ),
           ),
         ),
         React.createElement(Card, null,
@@ -403,6 +461,7 @@
             React.createElement("tbody", null,
               recent.slice().reverse().map(function (event, idx) {
                 const metrics = event.metrics || {};
+                const rowProfile = event.context && event.context.platform ? event.context.platform : "default";
                 return React.createElement("tr", { key: String(event.timestamp || idx) },
                   React.createElement("td", null, fmtTime(event.timestamp)),
                   React.createElement("td", { className: "font-courier" }, metrics.mode || "unknown"),
@@ -417,7 +476,15 @@
                       String(metrics.anthropic_deferred_tools || 0), " deferred / ", String(metrics.anthropic_payload_tools || 0), " payload",
                     ),
                   ),
-                  React.createElement("td", null, React.createElement(ToolPills, { tools: metrics.selected || [] })),
+                  React.createElement("td", null,
+                    React.createElement(ToolPills, { tools: metrics.selected || [] }),
+                    (metrics.selected || []).slice(0, 3).map(function (tool) {
+                      return React.createElement("div", { key: "actions-" + tool, className: "tool-slimmer-row-actions" },
+                        React.createElement(Button, { variant: "outline", onClick: function () { setToolPreference(tool, "always_include", rowProfile); }, disabled: advisorBusy }, "Always include"),
+                        React.createElement(Button, { variant: "outline", onClick: function () { setToolPreference(tool, "always_exclude", rowProfile); }, disabled: advisorBusy }, "Never pick here"),
+                      );
+                    }),
+                  ),
                 );
               }),
               recent.length === 0 && React.createElement("tr", null,

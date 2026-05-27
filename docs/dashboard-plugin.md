@@ -74,6 +74,41 @@ The dashboard reads from `$HERMES_HOME/tool-slimmer/decisions.jsonl`. Decision l
 
 The dashboard includes a privacy card backed by the same field inventory as `hermes tool-slimmer privacy`. It also exposes score details for recent v0.3.0+ decisions in the Decision Inspector, including alias and hybrid boosts, and can generate the bundled example eval report from the Release Evidence card.
 
+## Guided Setup
+
+The **Guided Setup** card calls the same advisor engine as:
+
+```bash
+hermes tool-slimmer advisor
+```
+
+It checks whether the config loads, whether the index exists, whether the full-tool fallback is visible, and whether platform profiles are configured. **Apply Recommended Config** writes only the `tool_slimmer` section and ensures `tool-slimmer` is listed in `plugins.enabled`. A timestamped backup is created first under:
+
+```text
+~/.hermes/tool-slimmer/backups/
+```
+
+Recommended profiles are intentionally conservative:
+
+- Telegram gets a narrow tool budget with memory and fallback kept available.
+- Slack gets a moderate budget with memory and file-search helpers.
+- CLI keeps the normal file/edit/search tool set.
+- Cron gets a larger budget for scheduled execution tasks.
+- Webhook keeps the fallback hot because webhook prompts are often short.
+
+If the recommendation does not fit a machine, restore the backup:
+
+```bash
+hermes tool-slimmer advisor --rollback ~/.hermes/tool-slimmer/backups/config-YYYYmmdd-HHMMSS.yaml
+```
+
+Recent decision rows also expose quick actions for selected tools:
+
+- **Always include** adds that tool to the current row's platform profile when Hermes recorded one.
+- **Never pick here** adds that tool to the current row's platform profile `always_exclude` list when Hermes recorded one.
+
+Both actions create a config backup before writing.
+
 ## Tool Index
 
 The dashboard has a **Tool Index** card that shows the persisted index path, rebuild state, indexed tool count, checksum, last-updated time, and a preview of indexed tool names. Use **Rebuild From Hermes Tools** after adding or removing Hermes plugins or MCP toolsets. When recent Tool Slimmer decisions exist, the rebuild uses the last live request schema snapshot so agent-injected context and memory tools are included; otherwise it falls back to Hermes' base tool definitions.

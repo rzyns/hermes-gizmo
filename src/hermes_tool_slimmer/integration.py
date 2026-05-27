@@ -163,6 +163,7 @@ def select_tool_schemas_callback(
     **kwargs: Any,
 ) -> list[Schema] | None:
     cfg = config or _load_config_for_hook()
+    cfg = cfg.for_context(platform=platform)
     if not cfg.enabled:
         return None
     try:

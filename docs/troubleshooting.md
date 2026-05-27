@@ -68,6 +68,19 @@ In keyword mode, the selector mostly matches text present in tool names, toolset
 
 `top_k: 0` is a valid explicit setting for selecting no ranked tools. It does not trigger fail-open by itself.
 
+If simple text-only messages like `hello`, `ping`, or `thanks` still show high baseline tokens, separate tool-schema overhead from Hermes' system prompt, skills, platform context, and conversation history. Tool Slimmer can reduce the schema portion, but it cannot remove non-tool prompt content. Low-information messages keep only `always_include` plus `tool_slimmer_request_full_tools`.
+
+If a tool is noisy in your deployment, add it to `tool_slimmer.always_exclude` (alias for `disabled_tools`). Example:
+
+```yaml
+tool_slimmer:
+  top_k: 4
+  always_include: [memory]
+  always_exclude: [terminal, cronjob]
+```
+
+Use this only when that entry point should not receive those tools through Tool Slimmer ranking. The full-tool fallback remains available when Hermes has registered it.
+
 ## Selector errors
 
 Keep `fail_open: true` for normal use. Errors then preserve the original full schema list.

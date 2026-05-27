@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import math
 from collections.abc import Collection
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -11,10 +11,25 @@ import yaml
 
 
 VALID_MODES = {"eager", "keyword", "hybrid", "anthropic_tool_search"}
-_LIST_FIELDS = {"always_include", "never_defer", "disabled_tools", "disabled_toolsets"}
+_LIST_FIELDS = {
+    "always_exclude",
+    "always_include",
+    "never_defer",
+    "disabled_tools",
+    "disabled_toolsets",
+}
 _BOOL_FIELDS = {"enabled", "include_mcp_tools", "include_native_tools", "log_decisions", "fail_open", "dry_run"}
 _ANTHROPIC_LIST_FIELDS = {"never_defer"}
 _ANTHROPIC_BOOL_FIELDS = {"defer_mcp_tools", "defer_native_tools", "tool_search_supported"}
+_PROFILE_ALIASES = {
+    "chat": "cli",
+    "console": "cli",
+    "terminal": "cli",
+    "tui": "cli",
+    "telegram_bot": "telegram",
+    "slack_bot": "slack",
+    "scheduled": "cron",
+}
 
 
 @dataclass
@@ -42,16 +57,22 @@ class ToolSlimmerConfig:
     dry_run: bool = False
     min_total_tools: int = 0
     min_estimated_reduction_percent: float = 5.0
+    min_score: float = 0.25
     aliases: dict[str, list[str]] = field(default_factory=dict)
+    profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
     anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> "ToolSlimmerConfig":
         raw = dict(data or {})
+        if "always_exclude" in raw and "disabled_tools" not in raw:
+            raw["disabled_tools"] = raw["always_exclude"]
+        profiles_raw = raw.pop("profiles", {}) or {}
         anthropic_raw = raw.pop("anthropic", {}) or {}
         if not isinstance(anthropic_raw, dict):
             anthropic_raw = {}
         raw = _normalize_mapping(raw, cls.__dataclass_fields__, _LIST_FIELDS, _BOOL_FIELDS)
+        raw["profiles"] = _normalize_profiles(profiles_raw)
         anthropic_raw = _normalize_mapping(
             anthropic_raw,
             AnthropicConfig.__dataclass_fields__,
@@ -63,6 +84,28 @@ class ToolSlimmerConfig:
         cfg.anthropic = AnthropicConfig(**{key: value for key, value in anthropic_raw.items() if key in AnthropicConfig.__dataclass_fields__})
         cfg.validate()
         return cfg
+
+    def for_context(self, *, platform: str | None = None, profile: str | None = None) -> "ToolSlimmerConfig":
+        """Return this config with default and platform profile overlays applied."""
+        names = ["default"]
+        resolved = _profile_name(profile or platform)
+        if resolved and resolved != "default":
+            names.append(resolved)
+        overlays = [self.profiles[name] for name in names if name in self.profiles]
+        if not overlays:
+            return self
+
+        raw = asdict(self)
+        raw["anthropic"] = asdict(self.anthropic)
+        raw["profiles"] = self.profiles
+        for overlay in overlays:
+            _merge_profile_overlay(raw, overlay)
+        return ToolSlimmerConfig.from_mapping(raw)
+
+    @property
+    def always_exclude(self) -> list[str]:
+        """User-facing alias for disabled_tools."""
+        return self.disabled_tools
 
     def validate(self) -> None:
         if self.mode not in VALID_MODES:
@@ -79,6 +122,10 @@ class ToolSlimmerConfig:
             raise ValueError("tool_slimmer.min_estimated_reduction_percent must be finite")
         if self.min_estimated_reduction_percent < 0:
             raise ValueError("tool_slimmer.min_estimated_reduction_percent must be >= 0")
+        if not isinstance(self.min_score, (int, float)) or isinstance(self.min_score, bool) or not math.isfinite(self.min_score):
+            raise ValueError("tool_slimmer.min_score must be finite")
+        if self.min_score < 0:
+            raise ValueError("tool_slimmer.min_score must be >= 0")
 
 
 def _normalize_string_list(value: Any, field_name: str) -> list[str]:
@@ -100,6 +147,57 @@ def _normalize_aliases(value: Any) -> dict[str, list[str]]:
     for key, values in value.items():
         aliases[str(key)] = _normalize_string_list(values, f"aliases.{key}")
     return aliases
+
+
+def _normalize_profiles(value: Any) -> dict[str, dict[str, Any]]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("tool_slimmer.profiles must be a mapping")
+    profiles: dict[str, dict[str, Any]] = {}
+    for name, profile_raw in value.items():
+        if profile_raw is None:
+            continue
+        if not isinstance(profile_raw, dict):
+            raise ValueError(f"tool_slimmer.profiles.{name} must be a mapping")
+        profile = dict(profile_raw)
+        if "always_exclude" in profile and "disabled_tools" not in profile:
+            profile["disabled_tools"] = profile["always_exclude"]
+        anthropic_raw = profile.pop("anthropic", None)
+        normalized = _normalize_mapping(profile, ToolSlimmerConfig.__dataclass_fields__, _LIST_FIELDS, _BOOL_FIELDS)
+        if isinstance(anthropic_raw, dict):
+            normalized["anthropic"] = _normalize_mapping(
+                anthropic_raw,
+                AnthropicConfig.__dataclass_fields__,
+                _ANTHROPIC_LIST_FIELDS,
+                _ANTHROPIC_BOOL_FIELDS,
+                allow_none_booleans=True,
+            )
+        profiles[_profile_name(str(name)) or str(name)] = normalized
+    return profiles
+
+
+def _profile_name(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = str(value).strip().lower().replace("-", "_")
+    return _PROFILE_ALIASES.get(normalized, normalized)
+
+
+def _merge_profile_overlay(raw: dict[str, Any], overlay: dict[str, Any]) -> None:
+    for key, value in overlay.items():
+        if key == "anthropic" and isinstance(value, dict):
+            anthropic = raw.get("anthropic")
+            if not isinstance(anthropic, dict):
+                anthropic = {}
+            raw["anthropic"] = {**anthropic, **value}
+        elif key == "aliases" and isinstance(value, dict):
+            aliases = raw.get("aliases")
+            if not isinstance(aliases, dict):
+                aliases = {}
+            raw["aliases"] = {**aliases, **value}
+        elif key != "profiles":
+            raw[key] = value
 
 
 def _normalize_mapping(
