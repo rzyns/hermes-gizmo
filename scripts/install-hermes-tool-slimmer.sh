@@ -171,6 +171,7 @@ if '"select_tool_schemas"' not in plugins_text:
 plugins_py.write_text(plugins_text, encoding="utf-8")
 
 patched_files = [plugins_py]
+patch_notes = []
 
 
 def patch_modular_core(conversation_py: Path, helpers_py: Path) -> None:
@@ -178,20 +179,25 @@ def patch_modular_core(conversation_py: Path, helpers_py: Path) -> None:
         raise SystemExit("Could not find modular Hermes core source files")
 
     helpers_text = helpers_py.read_text(encoding="utf-8")
-    helpers_text = helpers_text.replace(
+    legacy_helper_probe = (
         '    tools_for_api = getattr(agent, "_tools_for_request", None)\n'
         "    if tools_for_api is None:\n"
-        "        tools_for_api = agent.tools\n",
-        "    tools_for_api = agent.tools\n",
-        1,
+        "        tools_for_api = agent.tools\n"
     )
+    if legacy_helper_probe in helpers_text:
+        helpers_text = helpers_text.replace(legacy_helper_probe, "    tools_for_api = agent.tools\n", 1)
+        patch_notes.append("modular-helper-request-tools")
+    else:
+        patch_notes.append("modular-helper-direct-tools")
     helpers_py.write_text(helpers_text, encoding="utf-8")
 
     conversation_text = conversation_py.read_text(encoding="utf-8")
     if 'def _select_tools_for_request() -> list | None:' not in conversation_text:
         marker = '        # Main conversation loop\n'
+        marker_label = "modular-main-loop-comment"
         if marker not in conversation_text:
             marker = '        while retry_count < max_retries:\n'
+            marker_label = "modular-retry-loop"
         selector = (
             "        def _select_tools_for_request() -> list | None:\n"
             "            if not agent.tools:\n"
@@ -226,6 +232,9 @@ def patch_modular_core(conversation_py: Path, helpers_py: Path) -> None:
         if marker not in conversation_text:
             raise SystemExit("Could not find request retry loop marker in agent/conversation_loop.py")
         conversation_text = conversation_text.replace(marker, selector + marker, 1)
+        patch_notes.append(marker_label)
+    else:
+        patch_notes.append("modular-selector-present")
 
     old_request_patch = (
         "                tools_for_request = _select_tools_for_request()\n"
@@ -246,11 +255,15 @@ def patch_modular_core(conversation_py: Path, helpers_py: Path) -> None:
     )
     if old_request_patch in conversation_text:
         conversation_text = conversation_text.replace(old_request_patch, new_request_patch, 1)
+        patch_notes.append("modular-request-legacy-tools-for-request")
     elif "original_tools = agent.tools" not in conversation_text:
         old = "                api_kwargs = agent._build_api_kwargs(api_messages)\n"
         if old not in conversation_text:
             raise SystemExit("Could not patch request-local API kwargs construction")
         conversation_text = conversation_text.replace(old, new_request_patch, 1)
+        patch_notes.append("modular-request-build-api-kwargs")
+    else:
+        patch_notes.append("modular-request-present")
 
     if "tool_count=len(agent.tools or [])" in conversation_text:
         conversation_text = conversation_text.replace(
@@ -268,18 +281,21 @@ def patch_monolithic_core(run_agent_py: Path) -> None:
         raise SystemExit("Could not find monolithic run_agent.py source file")
 
     run_text = run_agent_py.read_text(encoding="utf-8")
-    run_text = run_text.replace(
+    active_tools_probe = (
         "    def _active_tools_for_request(self):\n"
         '        request_tools = getattr(self, "_tools_for_request", None)\n'
-        "        return request_tools if request_tools is not None else self.tools\n\n",
-        "",
-        1,
+        "        return request_tools if request_tools is not None else self.tools\n\n"
     )
-    run_text = run_text.replace(
-        "        tools_for_api = self._active_tools_for_request()\n",
-        "        tools_for_api = self.tools\n",
-        1,
-    )
+    if active_tools_probe in run_text:
+        run_text = run_text.replace(active_tools_probe, "", 1)
+        patch_notes.append("monolithic-active-tools-helper")
+    if "        tools_for_api = self._active_tools_for_request()\n" in run_text:
+        run_text = run_text.replace(
+            "        tools_for_api = self._active_tools_for_request()\n",
+            "        tools_for_api = self.tools\n",
+            1,
+        )
+        patch_notes.append("monolithic-tools-for-api")
 
     if 'def _select_tools_for_request() -> list | None:' not in run_text:
         marker = '        # Main conversation loop\n'
@@ -318,6 +334,9 @@ def patch_monolithic_core(run_agent_py: Path) -> None:
         if marker not in run_text:
             raise SystemExit("Could not find main conversation loop marker in run_agent.py")
         run_text = run_text.replace(marker, selector + marker, 1)
+        patch_notes.append("monolithic-main-loop-comment")
+    else:
+        patch_notes.append("monolithic-selector-present")
 
     old_request_patch = (
         "                    tools_for_request = _select_tools_for_request()\n"
@@ -338,11 +357,15 @@ def patch_monolithic_core(run_agent_py: Path) -> None:
     )
     if old_request_patch in run_text:
         run_text = run_text.replace(old_request_patch, new_request_patch, 1)
+        patch_notes.append("monolithic-request-legacy-tools-for-request")
     elif "original_tools = self.tools" not in run_text:
         old = "                    api_kwargs = self._build_api_kwargs(api_messages)\n"
         if old not in run_text:
             raise SystemExit("Could not patch request-local API kwargs construction")
         run_text = run_text.replace(old, new_request_patch, 1)
+        patch_notes.append("monolithic-request-build-api-kwargs")
+    else:
+        patch_notes.append("monolithic-request-present")
 
     if "tool_count=len(self.tools or [])" in run_text:
         run_text = run_text.replace(
@@ -363,6 +386,8 @@ else:
     raise SystemExit("Could not locate a supported Hermes core layout to patch")
 
 print("Patched Hermes core: " + ", ".join(str(path) for path in patched_files))
+if patch_notes:
+    print("Patch strategy: " + ", ".join(patch_notes))
 PY
 }
 
