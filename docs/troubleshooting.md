@@ -50,6 +50,18 @@ scripts/update-hermes-and-repair-tool-slimmer.sh
 
 It runs `hermes update --yes` so Hermes does not wait for a keypress at the stash-restore prompt, keeps the default pre-update backup unless you pass `--no-backup`, reruns the Tool Slimmer installer, restarts services, and prints the doctor report.
 
+To make this repair automatic after reboot/login, enable the guarded self-heal unit:
+
+```bash
+scripts/self-heal-tool-slimmer.sh --install-systemd
+```
+
+It does not update Hermes or Tool Slimmer. It only reruns the local repair installer when `doctor` confirms Tool Slimmer is enabled and the selector hook is missing. Remove it with:
+
+```bash
+scripts/self-heal-tool-slimmer.sh --uninstall-systemd
+```
+
 ## Dashboard savings look too high
 
 Dashboard savings are estimated schema-token savings, not guaranteed billable-token savings. Tool Slimmer computes them from serialized tool-schema JSON bytes divided by 4 before and after selection. Actual provider input-token and billing deltas can differ because tokenizers, prompt caching, system prompts, conversation history, and provider-specific tool serialization are outside this estimate.

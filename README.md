@@ -66,6 +66,14 @@ scripts/update-hermes-and-repair-tool-slimmer.sh
 
 It runs `hermes update --yes` so Hermes does not wait at the local-change restore prompt, keeps Hermes' normal backup behavior by default, reapplies the Tool Slimmer core hook if the update changed Hermes internals, restarts services, and finishes with the same doctor report.
 
+For hands-off reboot recovery, enable the optional self-heal service:
+
+```bash
+scripts/self-heal-tool-slimmer.sh --install-systemd
+```
+
+On login/boot it runs `doctor`; if Tool Slimmer is enabled but the selector hook is missing, it reruns the local repair installer and restarts only active Hermes services. It does not run `git pull`, `hermes update`, or change config.
+
 If an agent or hosted approval layer blocks direct script execution, run the same installer from a normal terminal, or ask the agent to request approval for this exact command after the repo is downloaded:
 
 ```bash

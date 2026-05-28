@@ -5,6 +5,7 @@
 ### Added
 
 - `scripts/update-hermes-and-repair-tool-slimmer.sh` to run `hermes update --yes`, preserve Hermes' normal backup behavior by default, rerun Tool Slimmer repair, and restart services after Hermes updates.
+- `scripts/self-heal-tool-slimmer.sh` with an optional user systemd unit for guarded boot/login repair when Tool Slimmer is enabled but the Hermes selector hook is missing.
 
 ## 0.5.1 - 2026-05-28
 
