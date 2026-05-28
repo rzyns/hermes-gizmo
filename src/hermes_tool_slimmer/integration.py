@@ -7,7 +7,7 @@ from typing import Any
 
 from .anthropic_tool_search import maybe_anthropic_tools
 from .config import ToolSlimmerConfig, load_config
-from .corpus import tool_name, tool_toolset
+from .corpus import tool_name
 from .index_store import IndexStore
 from .metrics import record_decision, reduction_metrics
 from .selector import ToolSelector
@@ -302,7 +302,7 @@ def select_tool_schemas_callback(
                 )
             except Exception as exc:
                 LOG.warning("tool-slimmer decision logging failed: %s", exc)
-        selected = _inject_session_loaded(selected, schemas, cfg)
+        selected = _inject_session_loaded(selected, schemas, cfg, session_id=session_id)
         if cfg.dry_run:
             return None
         return selected
@@ -328,32 +328,32 @@ def pre_llm_diagnostic_hook(**kwargs: Any) -> dict[str, str] | None:
     }
 
 
-def _inject_session_loaded(selected: list[Schema], full_schemas: list[Schema], cfg: ToolSlimmerConfig) -> list[Schema]:
+def _inject_session_loaded(selected: list[Schema], full_schemas: list[Schema], cfg: ToolSlimmerConfig, session_id: str | None = None) -> list[Schema]:
     """Merge session-loaded tools into the selected set, excluding disabled ones."""
     if not cfg.progressive_enabled:
         return selected
     state = SessionLoadedState(
         max_loaded=cfg.progressive_max_loaded,
         ttl_seconds=cfg.progressive_ttl_seconds,
+        session_id=session_id,
     )
     loaded = state.loaded_names()
     if not loaded:
         return selected
 
-    disabled = set(cfg.disabled_tools)
+    from .session_tools import _schema_is_eligible
+
     full_names = {tool_name(s): s for s in full_schemas if isinstance(s, dict)}
     selected_names = {tool_name(s) for s in selected if isinstance(s, dict)}
 
     to_add: list[Schema] = []
     for name in loaded:
-        if name in disabled or name in selected_names:
-            continue
         schema = full_names.get(name)
         if schema is None:
             continue
-        # Also exclude by toolset if globally disabled
-        tset = tool_toolset(schema)
-        if tset and tset in cfg.disabled_toolsets:
+        if not _schema_is_eligible(schema, cfg):
+            continue
+        if name in selected_names:
             continue
         to_add.append(schema)
 
