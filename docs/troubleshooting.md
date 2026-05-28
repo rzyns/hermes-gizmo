@@ -34,6 +34,22 @@ After it runs, verify with:
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 ```
 
+## Hermes update removed active slimming
+
+Hermes updates can replace the files that Tool Slimmer patches for active schema selection. If `hermes tool-slimmer doctor` warns that `select_tool_schemas` is unavailable after updating Hermes, run:
+
+```bash
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+```
+
+For future Hermes updates, use the update-and-repair helper from the Tool Slimmer repo:
+
+```bash
+scripts/update-hermes-and-repair-tool-slimmer.sh
+```
+
+It runs `hermes update --yes` so Hermes does not wait for a keypress at the stash-restore prompt, keeps the default pre-update backup unless you pass `--no-backup`, reruns the Tool Slimmer installer, restarts services, and prints the doctor report.
+
 ## Dashboard savings look too high
 
 Dashboard savings are estimated schema-token savings, not guaranteed billable-token savings. Tool Slimmer computes them from serialized tool-schema JSON bytes divided by 4 before and after selection. Actual provider input-token and billing deltas can differ because tokenizers, prompt caching, system prompts, conversation history, and provider-specific tool serialization are outside this estimate.

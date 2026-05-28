@@ -40,6 +40,16 @@ hermes tool-slimmer doctor
 
 All checks should pass. If the dashboard is running, the Tool Slimmer tab should appear after the dashboard service restarts.
 
+### Updating Hermes Later
+
+Use the bundled helper when Hermes releases a new version:
+
+```bash
+scripts/update-hermes-and-repair-tool-slimmer.sh
+```
+
+This runs `hermes update --yes`, which answers Hermes' local-change restore prompt automatically. It keeps Hermes' normal backup behavior by default, then reruns the Tool Slimmer repair installer so the selector hook is reapplied if Hermes changed its request path. Pass `--no-backup` only if you intentionally want to skip Hermes' pre-update backup.
+
 ### If script execution is blocked
 
 Some hosted agent environments block direct execution of downloaded scripts until the user approves that exact command. If Hermes reports that the repository downloaded correctly but `scripts/install-hermes-tool-slimmer.sh` was blocked, run the installer from a normal terminal or approve this command:

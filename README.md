@@ -58,6 +58,14 @@ Verify it worked:
 hermes tool-slimmer doctor
 ```
 
+When updating Hermes later, use the bundled update-and-repair helper:
+
+```bash
+scripts/update-hermes-and-repair-tool-slimmer.sh
+```
+
+It runs `hermes update --yes` so Hermes does not wait at the local-change restore prompt, keeps Hermes' normal backup behavior by default, reapplies the Tool Slimmer core hook if the update changed Hermes internals, restarts services, and finishes with the same doctor report.
+
 If an agent or hosted approval layer blocks direct script execution, run the same installer from a normal terminal, or ask the agent to request approval for this exact command after the repo is downloaded:
 
 ```bash
