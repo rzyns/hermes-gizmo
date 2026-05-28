@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 
-VALID_MODES = {"eager", "keyword", "hybrid", "anthropic_tool_search"}
+VALID_MODES = {"eager", "keyword", "hybrid", "anthropic_tool_search", "semantic_hybrid"}
 _LIST_FIELDS = {
     "always_exclude",
     "always_include",
@@ -18,7 +18,7 @@ _LIST_FIELDS = {
     "disabled_tools",
     "disabled_toolsets",
 }
-_BOOL_FIELDS = {"enabled", "include_mcp_tools", "include_native_tools", "log_decisions", "fail_open", "dry_run"}
+_BOOL_FIELDS = {"enabled", "include_mcp_tools", "include_native_tools", "log_decisions", "fail_open", "dry_run", "semantic_cache_enabled"}
 _ANTHROPIC_LIST_FIELDS = {"never_defer"}
 _ANTHROPIC_BOOL_FIELDS = {"defer_mcp_tools", "defer_native_tools", "tool_search_supported"}
 _PROFILE_ALIASES = {
@@ -61,6 +61,13 @@ class ToolSlimmerConfig:
     aliases: dict[str, list[str]] = field(default_factory=dict)
     profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
     anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
+    semantic_provider: str = "fake"
+    semantic_openai_model: str = "text-embedding-3-small"
+    semantic_openai_base_url: str | None = None
+    semantic_openai_timeout: float = 30.0
+    semantic_dim: int | None = None
+    rrf_k: float = 60.0
+    semantic_cache_enabled: bool = True
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> "ToolSlimmerConfig":
@@ -126,6 +133,8 @@ class ToolSlimmerConfig:
             raise ValueError("tool_slimmer.min_score must be finite")
         if self.min_score < 0:
             raise ValueError("tool_slimmer.min_score must be >= 0")
+        if not isinstance(self.rrf_k, (int, float)) or isinstance(self.rrf_k, bool) or not math.isfinite(self.rrf_k) or self.rrf_k <= 0:
+            raise ValueError("tool_slimmer.rrf_k must be a finite number > 0")
 
 
 def _normalize_string_list(value: Any, field_name: str) -> list[str]:
