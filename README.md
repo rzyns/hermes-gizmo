@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hermes](https://img.shields.io/badge/Hermes-dashboard%20plugin-111827)
 
-![Hermes Tool Slimmer dashboard hero](docs/assets/tool-slimmer-hero.png)
+![Hermes Tool Slimmer dashboard](docs/assets/tool-slimmer-dashboard.png)
 
 Hermes Tool Slimmer reduces repeated tool-schema overhead by selecting the smallest useful tool set for a turn. It builds an indexable corpus from Hermes tool schemas, ranks candidate tools with local BM25 plus explicit boosts, and fails open to the original schema list when anything goes wrong.
 
