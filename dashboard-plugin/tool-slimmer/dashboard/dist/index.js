@@ -80,6 +80,7 @@
     const [evalError, setEvalError] = useState(null);
     const [advisorBusy, setAdvisorBusy] = useState(false);
     const [advisorMessage, setAdvisorMessage] = useState(null);
+    const [rowToolChoices, setRowToolChoices] = useState({});
     const summary = data.summary || {};
     const totals = summary.totals || {};
     const averages = summary.averages || {};
@@ -308,7 +309,10 @@
               );
             }),
             advisor.recommended_yaml && React.createElement("details", { className: "tool-slimmer-details" },
-              React.createElement("summary", null, "Recommended YAML"),
+              React.createElement("summary", null, "Applied config preview"),
+              React.createElement("div", { className: "tool-slimmer-muted text-xs" },
+                "This is the tool_slimmer config the advisor applies. You do not need to paste it anywhere after Apply Recommended Config succeeds.",
+              ),
               React.createElement("pre", { className: "tool-slimmer-pre" }, advisor.recommended_yaml),
             ),
           ),
@@ -462,6 +466,9 @@
               recent.slice().reverse().map(function (event, idx) {
                 const metrics = event.metrics || {};
                 const rowProfile = event.context && event.context.platform ? event.context.platform : "default";
+                const selectedTools = metrics.selected || [];
+                const rowKey = String(event.timestamp || idx);
+                const chosenTool = rowToolChoices[rowKey] || selectedTools[0] || "";
                 return React.createElement("tr", { key: String(event.timestamp || idx) },
                   React.createElement("td", null, fmtTime(event.timestamp)),
                   React.createElement("td", { className: "font-courier" }, metrics.mode || "unknown"),
@@ -477,13 +484,23 @@
                     ),
                   ),
                   React.createElement("td", null,
-                    React.createElement(ToolPills, { tools: metrics.selected || [] }),
-                    (metrics.selected || []).slice(0, 3).map(function (tool) {
-                      return React.createElement("div", { key: "actions-" + tool, className: "tool-slimmer-row-actions" },
-                        React.createElement(Button, { variant: "outline", onClick: function () { setToolPreference(tool, "always_include", rowProfile); }, disabled: advisorBusy }, "Always include"),
-                        React.createElement(Button, { variant: "outline", onClick: function () { setToolPreference(tool, "always_exclude", rowProfile); }, disabled: advisorBusy }, "Never pick here"),
-                      );
-                    }),
+                    React.createElement(ToolPills, { tools: selectedTools }),
+                    selectedTools.length > 0 && React.createElement("div", { className: "tool-slimmer-row-actions" },
+                      React.createElement("select", {
+                        className: "tool-slimmer-select",
+                        value: chosenTool,
+                        onChange: function (event) {
+                          const value = event.target.value;
+                          setRowToolChoices(function (prev) {
+                            return Object.assign({}, prev, { [rowKey]: value });
+                          });
+                        },
+                      }, selectedTools.map(function (tool) {
+                        return React.createElement("option", { key: tool, value: tool }, tool);
+                      })),
+                      React.createElement(Button, { variant: "outline", onClick: function () { setToolPreference(chosenTool, "always_include", rowProfile); }, disabled: advisorBusy || !chosenTool }, "Always include"),
+                      React.createElement(Button, { variant: "outline", onClick: function () { setToolPreference(chosenTool, "always_exclude", rowProfile); }, disabled: advisorBusy || !chosenTool }, "Never pick here"),
+                    ),
                   ),
                 );
               }),

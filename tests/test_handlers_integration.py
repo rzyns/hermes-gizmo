@@ -265,6 +265,21 @@ def test_cli_analyze_config_and_eval(tmp_path, capsys):
     assert "metrics" in out["event_fields"]
 
 
+def test_advisor_cronjob_warning_respects_telegram_profile_exclude():
+    cfg = ToolSlimmerConfig(
+        profiles={"telegram": {"always_exclude": ["cronjob"]}},
+    )
+    summary = {
+        "totals": {"events": 2, "skipped_events": 0},
+        "platforms": {"telegram": 2},
+        "top_selected_tools": {"cronjob": 2},
+    }
+
+    report = analyze_config(cfg, summary, indexed_tools=53, available_tools={"cronjob"})
+
+    assert "cronjob_profile_review" not in {item["id"] for item in report["recommendations"]}
+
+
 def test_cli_status_index_select_recommend_and_main(tmp_path, capsys, monkeypatch):
     from argparse import Namespace
     from hermes_tool_slimmer.cli import handle_cli, main

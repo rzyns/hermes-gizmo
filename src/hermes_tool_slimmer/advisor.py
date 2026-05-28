@@ -187,12 +187,19 @@ def analyze_config(
                 "message": "Add platform profiles so Telegram, Slack, CLI, cron, and webhook traffic can use different tool budgets.",
             }
         )
-    if top_selected.get("cronjob") and "telegram" in platforms and "cronjob" not in cfg.disabled_tools:
+    telegram_profile = cfg.profiles.get("telegram") if isinstance(cfg.profiles, dict) else {}
+    telegram_excluded = []
+    if isinstance(telegram_profile, dict):
+        excluded_raw = telegram_profile.get("always_exclude") or telegram_profile.get("disabled_tools")
+        if isinstance(excluded_raw, list):
+            telegram_excluded = [str(item) for item in excluded_raw]
+    cronjob_excluded_for_text = "cronjob" in cfg.disabled_tools or "cronjob" in telegram_excluded
+    if top_selected.get("cronjob") and "telegram" in platforms and not cronjob_excluded_for_text:
         recommendations.append(
             {
-                "id": "telegram_noise",
+                "id": "cronjob_profile_review",
                 "severity": "warn",
-                "message": "cronjob appears in recent selections. Text-first profiles often work better with cronjob in always_exclude.",
+                "message": "cronjob appears in Telegram selections. If Telegram is mostly chat, add cronjob to the Telegram profile's always_exclude list.",
             }
         )
 
