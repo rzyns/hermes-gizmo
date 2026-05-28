@@ -34,3 +34,57 @@ REQUEST_FULL_TOOLS_SCHEMA = {
         },
     },
 }
+
+TOOL_SEARCH_SCHEMA = {
+    "name": "tool_slimmer_tool_search",
+    "description": "Search available tools by query and return ranked, loadable results.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Search query to match against tool names, descriptions, and toolsets.",
+            },
+            "schemas": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "Optional list of tool schemas to search. Defaults to live Hermes schemas or the last index.",
+            },
+        },
+        "required": ["query"],
+    },
+}
+
+TOOL_DETAILS_SCHEMA = {
+    "name": "tool_slimmer_tool_details",
+    "description": "Return detailed information about a specific tool by name. Optionally load or unload it from session state.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Tool name to look up.",
+            },
+            "load": {
+                "type": "boolean",
+                "description": "If true, load the tool into session-loaded state after returning details.",
+            },
+            "unload": {
+                "type": "boolean",
+                "description": "If true, unload the tool from session-loaded state.",
+            },
+            "schemas": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "Optional list of tool schemas to search. Defaults to live Hermes schemas or the last index.",
+            },
+        },
+        "required": ["name"],
+    },
+}
+
+LOADED_TOOLS_SCHEMA = {
+    "name": "tool_slimmer_loaded_tools",
+    "description": "List currently session-loaded tools with metadata and expiry.",
+    "parameters": {"type": "object", "properties": {}},
+}

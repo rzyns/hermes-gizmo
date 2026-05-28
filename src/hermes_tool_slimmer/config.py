@@ -18,7 +18,7 @@ _LIST_FIELDS = {
     "disabled_tools",
     "disabled_toolsets",
 }
-_BOOL_FIELDS = {"enabled", "include_mcp_tools", "include_native_tools", "log_decisions", "fail_open", "dry_run", "semantic_cache_enabled"}
+_BOOL_FIELDS = {"enabled", "include_mcp_tools", "include_native_tools", "log_decisions", "fail_open", "dry_run", "semantic_cache_enabled", "progressive_enabled"}
 _ANTHROPIC_LIST_FIELDS = {"never_defer"}
 _ANTHROPIC_BOOL_FIELDS = {"defer_mcp_tools", "defer_native_tools", "tool_search_supported"}
 _PROFILE_ALIASES = {
@@ -68,6 +68,9 @@ class ToolSlimmerConfig:
     semantic_dim: int | None = None
     rrf_k: float = 60.0
     semantic_cache_enabled: bool = True
+    progressive_enabled: bool = False
+    progressive_max_loaded: int = 20
+    progressive_ttl_seconds: int = 3600
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> "ToolSlimmerConfig":
@@ -135,6 +138,14 @@ class ToolSlimmerConfig:
             raise ValueError("tool_slimmer.min_score must be >= 0")
         if not isinstance(self.rrf_k, (int, float)) or isinstance(self.rrf_k, bool) or not math.isfinite(self.rrf_k) or self.rrf_k <= 0:
             raise ValueError("tool_slimmer.rrf_k must be a finite number > 0")
+        if not isinstance(self.progressive_max_loaded, int) or isinstance(self.progressive_max_loaded, bool) or not math.isfinite(self.progressive_max_loaded):
+            raise ValueError("tool_slimmer.progressive_max_loaded must be a finite integer")
+        if self.progressive_max_loaded < 0:
+            raise ValueError("tool_slimmer.progressive_max_loaded must be >= 0")
+        if not isinstance(self.progressive_ttl_seconds, int) or isinstance(self.progressive_ttl_seconds, bool) or not math.isfinite(self.progressive_ttl_seconds):
+            raise ValueError("tool_slimmer.progressive_ttl_seconds must be a finite integer")
+        if self.progressive_ttl_seconds < 0:
+            raise ValueError("tool_slimmer.progressive_ttl_seconds must be >= 0")
 
 
 def _normalize_string_list(value: Any, field_name: str) -> list[str]:

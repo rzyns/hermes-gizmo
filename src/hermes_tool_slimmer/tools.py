@@ -43,8 +43,8 @@ def _indexed_schemas() -> list[dict[str, Any]]:
 
 
 def _resolve_schemas(args: dict[str, Any], kwargs: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
-    provided = args.get("schemas") or kwargs.get("schemas")
-    if isinstance(provided, list) and provided:
+    provided = args.get("schemas") if isinstance(args, dict) and "schemas" in args else kwargs.get("schemas")
+    if isinstance(provided, list):
         return provided, "provided"
     live = _live_hermes_schemas()
     if live:
