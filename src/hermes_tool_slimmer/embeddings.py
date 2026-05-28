@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import math
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -311,7 +310,7 @@ class ReciprocalRankFusion:
         Output tuple: ``(combined_scores, details)`` where ``details`` is a
         dict mapping detail keys to lists of float values aligned with docs.
         """
-        np = _ensure_numpy()
+        _ensure_numpy()
 
         def _ranks(scores: list[float]) -> list[int]:
             """0-based rank: highest score gets rank 0."""

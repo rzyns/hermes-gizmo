@@ -5,11 +5,9 @@ import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-import pytest
 
 from hermes_tool_slimmer.config import ToolSlimmerConfig
 from hermes_tool_slimmer.session_tools import (
-    LoadedToolInfo,
     SessionLoadedState,
     _is_disabled_or_excluded,
     tool_slimmer_loaded_tools,
@@ -160,12 +158,9 @@ class TestToolSearch:
             state_path = Path(td) / "state.json"
             state = SessionLoadedState(path=state_path, max_loaded=10, ttl_seconds=3600)
             state.add("read_file")
-            # monkeypatch the default SessionLoadedState path to our temp one
-            old_default = ToolSlimmerConfig()
-            cfg = ToolSlimmerConfig(progressive_enabled=True, progressive_max_loaded=10, progressive_ttl_seconds=3600)
-            # Need a better way to inject state path: not in this test because tool_search gets config from load_config.
-            # Simpler: just verify the SessionLoadedState behavior in unit tests above.
-            # Skip tool-level integration because it depends on env/config path.
+            # Note: tool_search gets config from load_config, which reads from
+            # the env config path. Unit tests above verify SessionLoadedState
+            # behavior directly. Skip tool-level integration here.
             pass
 
 

@@ -1,10 +1,6 @@
 """Tests for semantic_hybrid ranking backend."""
 from __future__ import annotations
 
-import hashlib
-import json
-import os
-import pathlib
 import tempfile
 
 import pytest
