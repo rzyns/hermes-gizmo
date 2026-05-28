@@ -788,6 +788,8 @@ def test_pre_llm_and_selector_hooks_registered():
     calls = []
 
     class Ctx:
+        valid_hooks = {"pre_llm_call", "select_tool_schemas"}
+
         def register_hook(self, name, callback):
             calls.append((name, callback))
 
