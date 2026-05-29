@@ -15,8 +15,20 @@ from .types import Schema, SelectionResult, ToolDocument
 
 LOG = logging.getLogger(__name__)
 
-SAFETY_TOOL_NAMES = ("tool_slimmer_request_full_tools",)
-NON_TASK_TOOL_NAMES = ("tool_slimmer_request_full_tools", "tool_slimmer_select", "tool_slimmer_status")
+SAFETY_TOOL_NAMES = (
+    "tool_slimmer_request_full_tools",
+    "tool_slimmer_tool_search",
+    "tool_slimmer_tool_details",
+    "tool_slimmer_loaded_tools",
+)
+NON_TASK_TOOL_NAMES = (
+    "tool_slimmer_request_full_tools",
+    "tool_slimmer_tool_search",
+    "tool_slimmer_tool_details",
+    "tool_slimmer_loaded_tools",
+    "tool_slimmer_select",
+    "tool_slimmer_status",
+)
 SKILL_COMPANION_TOOL_NAMES = ("skill_view", "skills_list")
 
 BUILTIN_ALIASES = {

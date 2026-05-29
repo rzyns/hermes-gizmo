@@ -38,6 +38,28 @@ def test_selector_always_includes_full_tools_request_when_available():
     assert "tool_slimmer_request_full_tools" not in result.scores
 
 
+def test_selector_always_includes_progressive_discovery_tools_when_available():
+    cfg = ToolSlimmerConfig(top_k=0, always_include=[])
+    schemas = [
+        {"name": "tool_slimmer_request_full_tools", "toolset": "tool-slimmer", "description": "Request full tools"},
+        {"name": "tool_slimmer_tool_search", "toolset": "tool-slimmer", "description": "Search available tools"},
+        {"name": "tool_slimmer_tool_details", "toolset": "tool-slimmer", "description": "Get tool details and load it"},
+        {"name": "tool_slimmer_loaded_tools", "toolset": "tool-slimmer", "description": "List session-loaded tools"},
+        {"name": "mcp_open_design_start_run", "toolset": "open-design", "description": "Start an Open Design run"},
+    ]
+
+    result = ToolSelector(cfg).select("create an Open Design artifact", schemas)
+
+    assert result.selected_names == [
+        "tool_slimmer_request_full_tools",
+        "tool_slimmer_tool_search",
+        "tool_slimmer_tool_details",
+        "tool_slimmer_loaded_tools",
+    ]
+    assert result.always_included == result.selected_names
+    assert not {"tool_slimmer_request_full_tools", "tool_slimmer_tool_search", "tool_slimmer_tool_details", "tool_slimmer_loaded_tools"} & set(result.scores)
+
+
 def test_tool_slimmer_introspection_tools_do_not_compete_for_rank():
     cfg = ToolSlimmerConfig(top_k=1, always_include=[])
     schemas = [
