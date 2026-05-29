@@ -84,3 +84,14 @@ class TestDashboardAssetLayout:
         text = pyproject.read_text(encoding="utf-8")
         assert '"/dashboard/dist/index.js"' in text
         assert '"/dashboard/dist/style.css"' in text
+
+    def test_pyproject_wheel_includes_dashboard_and_plugin(self):
+        """Wheel must explicitly include dashboard and dashboard-plugin so
+        built wheels contain the required assets (HGZ-29a regression).
+        """
+        pyproject = REPO_ROOT / "pyproject.toml"
+        text = pyproject.read_text(encoding="utf-8")
+        # The [tool.hatch.build.targets.wheel] section must list both directories
+        wheel_section = text.split("[tool.hatch.build.targets.wheel]")[-1]
+        assert '"/dashboard"' in wheel_section
+        assert '"/dashboard-plugin"' in wheel_section

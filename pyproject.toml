@@ -83,3 +83,10 @@ pythonpath = ["src"]
 [tool.mypy]
 explicit_package_bases = true
 mypy_path = "src"
+
+[tool.hatch.build.targets.wheel]
+include = [
+  "/src/hermes_tool_slimmer",
+  "/dashboard",
+  "/dashboard-plugin",
+]
