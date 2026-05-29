@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 from dataclasses import asdict
 from difflib import SequenceMatcher
-from typing import Iterable
+from typing import Any, Iterable
 
 from .bm25 import BM25
 from .config import ToolSlimmerConfig
@@ -49,6 +49,19 @@ LOW_INFORMATION_TOKENS = {
 }
 
 
+def _make_embedding_provider(config: ToolSlimmerConfig) -> Any:
+    from .embeddings import FakeEmbeddingProvider, OpenAIEmbeddingProvider
+
+    if config.semantic_provider == "openai":
+        return OpenAIEmbeddingProvider(
+            model=config.semantic_openai_model,
+            base_url=config.semantic_openai_base_url,
+            timeout=config.semantic_openai_timeout,
+            dim=config.semantic_dim,
+        )
+    return FakeEmbeddingProvider(dim=config.semantic_dim or 128)
+
+
 class ToolSelector:
     def __init__(self, config: ToolSlimmerConfig | None = None) -> None:
         self.config = config or ToolSlimmerConfig()
@@ -63,6 +76,8 @@ class ToolSelector:
         if not self.config.enabled or self.config.mode == "eager":
             return SelectionResult(self.config.mode, schemas, [tool_name(s) for s in schemas], {}, len(schemas), [])
         try:
+            if self.config.mode == "semantic_hybrid":
+                return self._select_semantic_hybrid(user_message, schemas)
             return self._select_keyword(user_message, schemas)
         except Exception as exc:
             if self.config.fail_open:
@@ -88,6 +103,110 @@ class ToolSelector:
                 continue
             out.append(schema)
         return out
+
+    def _select_semantic_hybrid(self, user_message: str, schemas: list[Schema]) -> SelectionResult:
+        from .embeddings import EmbeddingCache, ReciprocalRankFusion, SemanticRanker
+
+        eligible = self._eligible(schemas)
+        schemas_by_name: dict[str, list[Schema]] = defaultdict(list)
+        for schema in eligible:
+            schemas_by_name[tool_name(schema)].append(schema)
+        duplicate_names = sorted(name for name, matches in schemas_by_name.items() if len(matches) > 1)
+        if duplicate_names:
+            LOG.warning("duplicate tool schema names encountered; first schema wins: %s", ", ".join(duplicate_names))
+        by_name = {name: matches[0] for name, matches in schemas_by_name.items()}
+        unique_eligible = list(by_name.values())
+
+        non_task_names = set(NON_TASK_TOOL_NAMES)
+        rankable_schemas = [schema for schema in unique_eligible if tool_name(schema) not in non_task_names]
+        docs = build_corpus(rankable_schemas)
+        base_query_tokens = tokenize(user_message)
+        query_tokens, alias_terms = expand_query_tokens(base_query_tokens, self.config.aliases)
+        bm25 = BM25([doc.tokens for doc in docs])
+        raw_bm25_scores = bm25.scores(query_tokens)
+
+        provider = _make_embedding_provider(self.config)
+        cache = EmbeddingCache() if self.config.semantic_cache_enabled else None
+        ranker = SemanticRanker(provider=provider, cache=cache)
+        try:
+            doc_matrix = ranker.embed_documents(rankable_schemas)
+            query_vec = ranker.embed_query(user_message)
+            cosine_sims = ranker.cosine_similarities(query_vec, doc_matrix)
+            semantic_scores = cosine_sims.tolist()
+        except Exception as exc:
+            LOG.warning("semantic_hybrid embedding failed; degrading to keyword: %s", exc)
+            return self._select_keyword(user_message, schemas)
+
+        rrf = ReciprocalRankFusion(rrf_k=self.config.rrf_k)
+        rrf_scores, rrf_details = rrf.fuse(raw_bm25_scores, semantic_scores)
+
+        score_details: dict[str, dict[str, float]] = {}
+        scores: dict[str, float] = {}
+        for doc_idx, doc in enumerate(docs):
+            parts = self._score_parts(query_tokens, alias_terms, doc, hybrid=False)
+            parts["bm25"] = raw_bm25_scores[doc_idx]
+            parts["semantic_cosine"] = round(semantic_scores[doc_idx], 6)
+            parts["rrf"] = round(rrf_scores[doc_idx], 6)
+            parts["bm25_rank"] = float(rrf_details["bm25_rank"][doc_idx])
+            parts["semantic_rank"] = float(rrf_details["semantic_rank"][doc_idx])
+            total = round(sum(parts.values()), 6)
+            parts["total"] = total
+            score_details[doc.name] = parts
+            scores[doc.name] = total
+
+        selected: list[Schema] = []
+        selected_names: set[str] = set()
+        always_present: list[str] = []
+        for name in _always_include_names(self.config.always_include):
+            if name in by_name and name not in selected_names:
+                selected.append(by_name[name])
+                selected_names.add(name)
+                always_present.append(name)
+
+        if _is_low_information_query(query_tokens):
+            return SelectionResult(
+                self.config.mode,
+                selected,
+                [tool_name(s) for s in selected],
+                scores,
+                len(schemas),
+                always_present,
+                reason="low_information_query",
+                score_details=score_details,
+                expanded_query_tokens=query_tokens,
+            )
+
+        has_relevant_match = bool(query_tokens) and any(score > 0 for score in scores.values())
+        if not has_relevant_match:
+            if selected:
+                return SelectionResult(self.config.mode, selected, [tool_name(s) for s in selected], scores, len(schemas), always_present, reason="no_relevant_match", score_details=score_details, expanded_query_tokens=query_tokens)
+            if eligible and self.config.fail_open and self.config.top_k > 0:
+                return SelectionResult(self.config.mode, eligible, [tool_name(s) for s in eligible], scores, len(schemas), always_present, fail_open=True, reason="no_relevant_match", score_details=score_details, expanded_query_tokens=query_tokens)
+            return SelectionResult(self.config.mode, selected, [], scores, len(schemas), always_present, reason="no_relevant_match", score_details=score_details, expanded_query_tokens=query_tokens)
+
+        remaining_slots = self.config.top_k
+        ranked = sorted(docs, key=lambda doc: (scores.get(doc.name, 0.0), doc.name), reverse=True)
+        for doc in ranked:
+            if remaining_slots <= 0:
+                break
+            if doc.name in selected_names:
+                continue
+            score = scores.get(doc.name, 0.0)
+            if score < self.config.min_score:
+                continue
+            selected.append(by_name[doc.name])
+            selected_names.add(doc.name)
+            remaining_slots -= 1
+
+        if _needs_skill_companions(query_tokens, selected_names):
+            for name in SKILL_COMPANION_TOOL_NAMES:
+                if name in by_name and name not in selected_names:
+                    selected.append(by_name[name])
+                    selected_names.add(name)
+
+        if not selected and eligible and self.config.top_k > 0:
+            return SelectionResult(self.config.mode, selected, [], scores, len(schemas), always_present, reason="below_min_score", score_details=score_details, expanded_query_tokens=query_tokens)
+        return SelectionResult(self.config.mode, selected, [tool_name(s) for s in selected], scores, len(schemas), always_present, score_details=score_details, expanded_query_tokens=query_tokens)
 
     def _select_keyword(self, user_message: str, schemas: list[Schema]) -> SelectionResult:
         eligible = self._eligible(schemas)

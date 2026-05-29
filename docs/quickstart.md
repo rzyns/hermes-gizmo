@@ -1,83 +1,32 @@
-# Quickstart
+# Quickstart — Hermes Gizmo Fork
 
-## 1. Install
+This is the quickstart for the **Hermes Gizmo fork** of Tool Slimmer. For upstream install (dashboard, script installer), see the original quickstart and README.
 
-Use Tool Slimmer v0.4.0+ with Hermes Agent v0.14.0. Older Tool Slimmer releases are not functionally compatible with Hermes v0.14.0 active schema slimming because the provider request construction code moved.
+## Prerequisites
 
-### Dashboard Install
+- Python 3.11+
+- A local checkout of this repo
+- A dedicated Hermes profile (e.g., `hermes-gizmo`) — do not install on the default profile
 
-On Hermes builds with dashboard plugin repair support, open the dashboard **Plugins** page, paste this into the install field, and keep **Enable after install** on:
+## 1. Install (Isolated Profile)
 
-```text
-alias8818/hermes-tool-slimmer
-```
-
-The dashboard installer clones the repo to `~/.hermes/plugins/tool-slimmer`, runs the Tool Slimmer repair installer with `--no-restart`, and preserves the git checkout so the dashboard **Update** button can use `git pull` later. Restart the gateway after install or update so active schema slimming uses the patched selector hook.
-
-### Terminal Install
-
-Open a terminal on the machine where Hermes is installed:
+Set the profile and home directory:
 
 ```bash
-cd /tmp
-git clone https://github.com/alias8818/hermes-tool-slimmer.git
-cd hermes-tool-slimmer
+export HERMES_PROFILE=hermes-gizmo
+export HERMES_HOME="$HOME/.hermes/profiles/$HERMES_PROFILE"
 ```
 
-Run the installer:
+Install the package from this local checkout:
 
 ```bash
-scripts/install-hermes-tool-slimmer.sh
+cd /home/openclaw/dev/hermes-stuff/plugins/hermes-gizmo
+pip install -e ".[dev]"
 ```
-
-The installer handles the Python package, dashboard files, Hermes plugin enablement, Hermes core selector hook, service restart, and final verification. Its core patcher supports both older monolithic Hermes cores and the current v0.14.0 modular core layout.
-
-If it finishes successfully, run:
-
-```bash
-hermes tool-slimmer doctor
-```
-
-All checks should pass. If the dashboard is running, the Tool Slimmer tab should appear after the dashboard service restarts.
-
-### If script execution is blocked
-
-Some hosted agent environments block direct execution of downloaded scripts until the user approves that exact command. If Hermes reports that the repository downloaded correctly but `scripts/install-hermes-tool-slimmer.sh` was blocked, run the installer from a normal terminal or approve this command:
-
-```bash
-bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
-```
-
-Use the actual unpacked repo path if it is not `/tmp/hermes-tool-slimmer`. This failure mode is an execution approval problem; the remaining install work is still the normal package install, plugin enablement, core patch check, service restart, and doctor report.
-
-If there are multiple `hermes` launchers, prefer the venv launcher:
-
-```bash
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
-```
-
-The source-checkout launcher may use system Python and fail to import packages installed into the Hermes venv.
-
-If the approval layer asks what this command does, the answer is: installs the Python package into the Hermes virtual environment, copies the dashboard plugin into `~/.hermes/plugins/tool-slimmer`, enables the plugin, applies the Hermes selector-hook patch when needed, restarts Hermes dashboard/gateway services when present, and runs `doctor`.
-
-### If Hermes Agent is installing it for you
-
-Give Hermes Agent this prompt:
-
-```text
-Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
-After downloading the repo, run:
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
-If the environment asks for approval to run that script, request approval for that exact command.
-Then verify with:
-$HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
-```
-
-If Hermes Agent says it downloaded or unpacked the repo but installation is not complete, the next step is usually only the `bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh` command above.
 
 ## 2. Add configuration
 
-Add a `tool_slimmer` section to `~/.hermes/config.yaml`:
+Create `$HERMES_HOME/config.yaml`:
 
 ```yaml
 plugins:
@@ -103,39 +52,56 @@ tool_slimmer:
 
 Start with `dry_run: true`. This lets you inspect selections without changing provider requests.
 
-`min_total_tools` and `min_estimated_reduction_percent` are low-overhead guardrails. `min_total_tools` skips catalogs with fewer than that many tools; equality is allowed to slim. The default is `0` so subagents and restricted toolsets are still ranked. Raise it only for paths where small catalogs are not worth changing.
+### Mode choice
 
-Tool Slimmer keeps `tool_slimmer_request_full_tools` available in trimmed requests. If a skill needs a hidden tool, the model can call that fallback tool and the next model request will receive the full Hermes tool schema list.
-
-Use `mode: keyword` first. `hybrid` only adds a deterministic fuzzy-token boost; it is not a semantic embedding mode. For broad general agents, keep `top_k` around `8`. For narrow Telegram or webhook processors, smaller values such as `4` can save more schema tokens, but add `always_include` for required tools and `always_exclude` for noisy tools such as `terminal` or `cronjob` when that entry point should never use them.
+| Mode | When to use |
+|---|---|
+| `keyword` | Default. Fast, no extra deps. Uses BM25 ranking. |
+| `hybrid` | Same as keyword plus a small fuzzy-token boost for typos. Negligible overhead. |
+| `semantic_hybrid` | Only when a real embedding provider is available. With the default FakeEmbeddingProvider, it degrades to deterministic but semantically meaningless embeddings — lower quality than keyword. See `docs/gizmo-eval-report.md`. |
+| `eager` | Sends full catalog; useful for debugging. |
+| `anthropic_tool_search` | Only for Anthropic native provider with Tool Search support. |
 
 ## 3. Check installation
 
 ```bash
 hermes tool-slimmer doctor
 hermes tool-slimmer status
-hermes tool-slimmer privacy
-scripts/troubleshoot-hermes-tool-slimmer.sh
 ```
 
-`doctor` reports whether Hermes is importable, the plugin is enabled, the index path is writable, and whether the core selector hook is available.
+`doctor` reports whether:
+- config is valid
+- the plugin is enabled in the active profile
+- index directory is writable
+- the core selector hook is available
 
-Dashboard savings are estimated schema-token savings, not invoice-grade billing numbers. They use serialized tool-schema JSON bytes divided by 4 before and after selection.
-
-Open the Hermes dashboard and use Tool Slimmer's **Tool Index** card to rebuild the index from the currently enabled Hermes tools. Then use **Guided Setup** -> **Apply Recommended Config** to create platform profiles with a config backup. This is the easiest way to confirm what the plugin sees after installing or changing toolsets.
-
-Run `hermes tool-slimmer eval --prompts examples/prompts.yaml --schemas examples/tools.yaml --markdown` to reproduce the public example evaluation report.
+If `core_selector_hook` shows `warn`, your Hermes core does not advertise `select_tool_schemas`. The plugin will run diagnostics-only (dashboard/CLI work, no active slimming).
 
 ## 4. Preview selection
 
 ```bash
-hermes tool-slimmer select "search this repo for MCP registration code" --schemas tools.yaml
+hermes tool-slimmer select "search this repo for MCP registration code" --schemas examples/tools.yaml
 ```
-
-A schema file can be a YAML list or an object containing `tools:` / `schemas:`.
 
 ## 5. Enable active schema slimming
 
-Set `dry_run: false` only after `doctor` reports a Hermes core selector hook or after applying the patch in `docs/hermes-core-selector-hook.patch` to Hermes core.
+Set `dry_run: false` only after `doctor` reports all checks passing and you have observed satisfactory selections during dry-run.
 
-The installer patches the local Hermes core automatically when that hook is missing. Use `scripts/install-hermes-tool-slimmer.sh --no-core-patch` only when you want to manage Hermes core changes yourself.
+## 6. Run the benchmark report
+
+```bash
+hermes tool-slimmer eval --prompts examples/prompts.yaml --schemas examples/tools.yaml --markdown
+```
+
+For a full mode comparison (keyword vs hybrid vs semantic_hybrid), see [`docs/gizmo-eval-report.md`](docs/gizmo-eval-report.md).
+
+## Non-authorizations
+
+- No upstream PR submission from this fork.
+- No public package publish.
+- No live default Hermes plugin install/enablement.
+- No gateway restart unless explicitly approved.
+- No provider credential changes.
+- No destructive mutation of existing Tool Slimmer/Hermes installs.
+
+See [`docs/gizmo-compatibility.md`](docs/gizmo-compatibility.md) for the full compatibility guide.

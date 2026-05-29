@@ -1,4 +1,9 @@
-# Hermes Tool Slimmer
+# Hermes Tool Slimmer — Hermes Gizmo Fork
+
+> **Fork notice**: This repo is a private Hermes Gizmo fork of `alias8818/hermes-tool-slimmer`. It may contain experimental features (semantic_hybrid, progressive/session-loaded tools, isolated-profile wiring) not present in upstream. Do not push to upstream or publish this fork without explicit approval.
+>
+> - Gizmo compatibility guide: [`docs/gizmo-compatibility.md`](docs/gizmo-compatibility.md)
+> - Selector mode comparison: [`docs/gizmo-eval-report.md`](docs/gizmo-eval-report.md)
 
 [![Tests](https://github.com/alias8818/hermes-tool-slimmer/actions/workflows/tests.yml/badge.svg)](https://github.com/alias8818/hermes-tool-slimmer/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-3776ab)
@@ -25,6 +30,44 @@ The metric is still useful because it measures the repeated tool-catalog payload
 Dashboard headline totals count real Hermes session events by default. Probe events without a `session_id` are excluded from headline savings and remain available through the dashboard API's `all_summary` field for audits.
 
 ## Install
+
+### Quickstart for this fork
+
+This is a **private fork** maintained in a local checkout, not installed via the dashboard. Use isolated-profile activation instead of system-wide installation.
+
+1. Activate the target Hermes profile:
+   ```bash
+   export HERMES_PROFILE=hermes-gizmo
+   export HERMES_HOME="$HOME/.hermes/profiles/$HERMES_PROFILE"
+   ```
+2. Install the package from this local checkout:
+   ```bash
+   cd /home/openclaw/dev/hermes-stuff/plugins/hermes-gizmo
+   pip install -e ".[dev]"
+   ```
+3. Create the profile config under `HERMES_HOME`:
+   ```yaml
+   plugins:
+     enabled:
+       - tool-slimmer
+
+   tool_slimmer:
+     enabled: true
+     mode: keyword
+     top_k: 8
+     dry_run: true
+   ```
+4. Verify:
+   ```bash
+   hermes tool-slimmer doctor
+   ```
+
+For isolated-profile constraints, selector hook wiring, and non-authorizations, see [`docs/gizmo-compatibility.md`](docs/gizmo-compatibility.md).
+For the full upstream install guide (dashboard, script installer, etc.), see the sections below.
+
+---
+
+### Upstream install reference
 
 Hermes Tool Slimmer v0.4.0+ is the supported line for Hermes Agent v0.14.0. Older Tool Slimmer releases can load as dashboard/diagnostic plugins on v0.14.0, but they do not provide active schema slimming because Hermes moved the request construction path.
 
@@ -229,6 +272,8 @@ Keyword mode is intentionally mostly literal. It includes a small deterministic 
 - [`docs/privacy.md`](docs/privacy.md): decision log field inventory and privacy notes.
 - [`docs/reports/latest-eval.md`](docs/reports/latest-eval.md): reproducible example evaluation report.
 - [`docs/troubleshooting.md`](docs/troubleshooting.md): common operational issues.
+- [`docs/gizmo-compatibility.md`](docs/gizmo-compatibility.md): **Hermes Gizmo fork** compatibility, selector hook wiring, isolated-profile install, and non-authorizations.
+- [`docs/gizmo-eval-report.md`](docs/gizmo-eval-report.md): **Hermes Gizmo fork** benchmark report comparing keyword / hybrid / semantic_hybrid.
 - [`examples/`](examples/): sample config, prompts, schemas, and expected output.
 
 ## Release validation
@@ -238,7 +283,7 @@ This repository is release-ready only when these checks pass:
 ```bash
 ruff check .
 mypy src tests
-python -m compileall -q src tests
+python -m compileall -q src tests dashboard-plugin/tool-slimmer
 pytest -q
 python -m build
 ```
