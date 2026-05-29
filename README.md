@@ -10,6 +10,10 @@
 
 Hermes Tool Slimmer reduces repeated tool-schema overhead by selecting the smallest useful tool set for a turn. It builds an indexable corpus from Hermes tool schemas, ranks candidate tools with local BM25 plus explicit boosts, and fails open to the original schema list when anything goes wrong.
 
+## Support
+
+For Tool Slimmer install bugs, dashboard issues, ranking misses, or configuration questions, please open an issue at [alias8818/hermes-tool-slimmer](https://github.com/alias8818/hermes-tool-slimmer/issues) instead of posting inside unrelated Hermes Agent issue threads. You can also reach Aliasocracy on Discord at `Aliasocracy#1439`; mention Hermes Tool Slimmer in the message so it is clear the contact is about this project.
+
 ## Why
 
 Large Hermes installations can expose dozens of native and MCP tools. A 57-tool schema catalog can serialize to roughly 73 KB, or about 18K approximate prompt tokens using the documented `bytes / 4` estimate. Selecting 8-12 relevant tools for a repository-search turn can reduce that to about 15 KB / 3.7K approximate tokens while keeping configured safety tools hot.
