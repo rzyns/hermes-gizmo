@@ -102,6 +102,7 @@ step "Installing dashboard/user plugin files"
 TARGET_DIR="$HERMES_HOME/plugins/$PLUGIN_NAME"
 TMP_DIR="$HERMES_HOME/plugins/.${PLUGIN_NAME}.tmp.$$"
 PLUGIN_SRC="$ROOT_DIR/dashboard-plugin/$PLUGIN_NAME"
+DASHBOARD_SRC="$ROOT_DIR/dashboard"
 mkdir -p "$HERMES_HOME/plugins"
 if [[ "$(readlink -f "$ROOT_DIR")" == "$(readlink -f "$TARGET_DIR" 2>/dev/null || printf '%s' "$TARGET_DIR")" ]]; then
   cp -R "$PLUGIN_SRC"/. "$TARGET_DIR"/
@@ -111,6 +112,9 @@ else
   rm -rf "$TARGET_DIR"
   mv "$TMP_DIR" "$TARGET_DIR"
 fi
+# Ensure built dashboard assets are present at the served layout
+mkdir -p "$TARGET_DIR/dashboard/dist"
+cp "$DASHBOARD_SRC/dist/index.js" "$DASHBOARD_SRC/dist/style.css" "$TARGET_DIR/dashboard/dist/"
 echo "Installed: $TARGET_DIR"
 
 step "Enabling Hermes plugin"

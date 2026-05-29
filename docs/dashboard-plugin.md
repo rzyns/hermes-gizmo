@@ -63,6 +63,9 @@ Use this only when you cannot run the installer:
 uv pip install --python ~/.hermes/hermes-agent/venv/bin/python -e .
 rm -rf ~/.hermes/plugins/tool-slimmer
 cp -R dashboard-plugin/tool-slimmer ~/.hermes/plugins/tool-slimmer
+# Ensure built assets are at the served layout
+mkdir -p ~/.hermes/plugins/tool-slimmer/dashboard/dist
+cp dashboard/dist/index.js dashboard/dist/style.css ~/.hermes/plugins/tool-slimmer/dashboard/dist/
 hermes plugins enable tool-slimmer
 systemctl --user restart hermes-dashboard.service hermes-gateway.service
 hermes tool-slimmer doctor

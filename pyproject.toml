@@ -21,8 +21,8 @@ include = [
   "/pyproject.toml",
 ]
 artifacts = [
-  "/dashboard-plugin/tool-slimmer/dashboard/dist/index.js",
-  "/dashboard-plugin/tool-slimmer/dashboard/dist/style.css",
+  "/dashboard/dist/index.js",
+  "/dashboard/dist/style.css",
 ]
 
 [project]
