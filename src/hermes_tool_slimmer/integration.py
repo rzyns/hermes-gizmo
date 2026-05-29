@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from time import perf_counter
@@ -265,7 +266,16 @@ def select_tool_schemas_callback(
             )
             selected = result.selected
             effective_cfg = fallback_cfg
+        selected_before_session_load = selected
+        selected = _inject_session_loaded(selected, schemas, cfg, session_id=session_id)
+        if selected is not selected_before_session_load:
+            before_names = {tool_name(s) for s in selected_before_session_load if isinstance(s, dict)}
+            injected_names = [tool_name(s) for s in selected if isinstance(s, dict) and tool_name(s) not in before_names]
+        else:
+            injected_names = []
         metrics = _metrics_for_selection(effective_cfg.mode, schemas, selected, result.selected, result.always_included)
+        if injected_names:
+            metrics["session_loaded_injected"] = injected_names
         metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)
         metrics["selected_scores"] = {name: result.score_details.get(name, {}) for name in result.selected_names}
         metrics["top_candidates"] = [
@@ -302,7 +312,6 @@ def select_tool_schemas_callback(
                 )
             except Exception as exc:
                 LOG.warning("tool-slimmer decision logging failed: %s", exc)
-        selected = _inject_session_loaded(selected, schemas, cfg, session_id=session_id)
         if cfg.dry_run:
             return None
         return selected
@@ -326,6 +335,82 @@ def pre_llm_diagnostic_hook(**kwargs: Any) -> dict[str, str] | None:
             "schema selection is diagnostic-only for this turn."
         )
     }
+
+
+def _sync_session_loaded_from_tool_result(
+    *,
+    tool_name: str,
+    args: Any,
+    result: Any,
+    session_id: str | None,
+) -> None:
+    """Bridge Tool Slimmer load/unload tool calls into the active Hermes session.
+
+    Hermes core passes session_id to hooks, but not to registry.dispatch handlers.
+    The Tool Slimmer details handler therefore updates the anonymous registry during
+    the tool call itself. This hook mirrors successful load/unload actions into the
+    real session so the next select_tool_schemas hook can inject loaded tools.
+    """
+    if tool_name != "tool_slimmer_tool_details" or not session_id:
+        return
+    raw_args = args if isinstance(args, dict) else {}
+    try:
+        payload = json.loads(result) if isinstance(result, str) else result
+    except json.JSONDecodeError:
+        return
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        return
+
+    name = str(payload.get("name") or raw_args.get("name") or "").strip()
+    if not name:
+        return
+
+    try:
+        cfg = load_config(raw_args.get("config_path") if isinstance(raw_args, dict) else None)
+        cfg = cfg.for_context(platform=raw_args.get("platform"), profile=raw_args.get("profile"))
+    except Exception as exc:
+        LOG.debug("tool-slimmer session bridge config load failed: %s", exc)
+        return
+    if not cfg.progressive_enabled:
+        return
+
+    state = SessionLoadedState(
+        max_loaded=cfg.progressive_max_loaded,
+        ttl_seconds=cfg.progressive_ttl_seconds,
+        session_id=session_id,
+    )
+    if payload.get("load_action") == "added":
+        info_raw = payload.get("info")
+        info = info_raw if isinstance(info_raw, dict) else {}
+        state.add(name, toolset=info.get("toolset"))
+    elif payload.get("unload_action") == "removed":
+        state.remove(name)
+
+
+def post_tool_call_session_bridge_hook(**kwargs: Any) -> None:
+    """Post-tool hook wrapper for mirroring progressive loads to session state."""
+    _sync_session_loaded_from_tool_result(
+        tool_name=str(kwargs.get("tool_name") or ""),
+        args=kwargs.get("args"),
+        result=kwargs.get("result"),
+        session_id=str(kwargs.get("session_id") or "") or None,
+    )
+    return None
+
+
+def transform_loaded_tools_session_bridge_hook(**kwargs: Any) -> str | None:
+    """Return loaded-tools diagnostics for the active session when core supplies it."""
+    if kwargs.get("tool_name") != "tool_slimmer_loaded_tools":
+        return None
+    session_id = str(kwargs.get("session_id") or "").strip()
+    if not session_id:
+        return None
+    from .session_tools import tool_slimmer_loaded_tools
+
+    args_raw = kwargs.get("args")
+    args = args_raw if isinstance(args_raw, dict) else {}
+    bridged_args = {**args, "session_id": session_id}
+    return tool_slimmer_loaded_tools(bridged_args)
 
 
 def _inject_session_loaded(selected: list[Schema], full_schemas: list[Schema], cfg: ToolSlimmerConfig, session_id: str | None = None) -> list[Schema]:
@@ -387,11 +472,27 @@ def maybe_register_selector_hook(ctx: Any) -> bool:
     """
     selector_registered = False
     register_hook = getattr(ctx, "register_hook", None)
+    valid_hooks = _known_valid_hooks(ctx) if callable(register_hook) else None
+
+    def hook_available(name: str) -> bool:
+        return valid_hooks is None or name in valid_hooks
+
     if callable(register_hook):
-        try:
-            register_hook("pre_llm_call", pre_llm_diagnostic_hook)
-        except Exception as exc:  # pragma: no cover - depends on Hermes version
-            LOG.warning("pre_llm_call diagnostic hook registration failed: %s", exc)
+        if hook_available("pre_llm_call"):
+            try:
+                register_hook("pre_llm_call", pre_llm_diagnostic_hook)
+            except Exception as exc:  # pragma: no cover - depends on Hermes version
+                LOG.warning("pre_llm_call diagnostic hook registration failed: %s", exc)
+        if hook_available("post_tool_call"):
+            try:
+                register_hook("post_tool_call", post_tool_call_session_bridge_hook)
+            except Exception as exc:  # pragma: no cover - depends on Hermes version
+                LOG.warning("post_tool_call session bridge hook registration failed: %s", exc)
+        if hook_available("transform_tool_result"):
+            try:
+                register_hook("transform_tool_result", transform_loaded_tools_session_bridge_hook)
+            except Exception as exc:  # pragma: no cover - depends on Hermes version
+                LOG.warning("transform_tool_result session bridge hook registration failed: %s", exc)
     callback = select_tool_schemas_callback
     for method_name in ("register_tool_schema_selector", "register_schema_selector"):
         method = getattr(ctx, method_name, None)
@@ -402,7 +503,6 @@ def maybe_register_selector_hook(ctx: Any) -> bool:
             except Exception as exc:
                 LOG.warning("%s registration failed: %s", method_name, exc)
     if callable(register_hook):
-        valid_hooks = _known_valid_hooks(ctx)
         if valid_hooks is not None and "select_tool_schemas" not in valid_hooks:
             LOG.warning("Hermes selector hook is unavailable; tool-slimmer will run diagnostics only")
             return False

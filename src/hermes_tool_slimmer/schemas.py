@@ -45,11 +45,6 @@ TOOL_SEARCH_SCHEMA = {
                 "type": "string",
                 "description": "Search query to match against tool names, descriptions, and toolsets.",
             },
-            "schemas": {
-                "type": "array",
-                "items": {"type": "object"},
-                "description": "Optional list of tool schemas to search. Defaults to live Hermes schemas or the last index.",
-            },
         },
         "required": ["query"],
     },
@@ -72,11 +67,6 @@ TOOL_DETAILS_SCHEMA = {
             "unload": {
                 "type": "boolean",
                 "description": "If true, unload the tool from session-loaded state.",
-            },
-            "schemas": {
-                "type": "array",
-                "items": {"type": "object"},
-                "description": "Optional list of tool schemas to search. Defaults to live Hermes schemas or the last index.",
             },
         },
         "required": ["name"],

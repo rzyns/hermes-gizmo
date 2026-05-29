@@ -7,6 +7,11 @@ from tempfile import TemporaryDirectory
 
 
 from hermes_tool_slimmer.config import ToolSlimmerConfig
+from hermes_tool_slimmer.integration import (
+    post_tool_call_session_bridge_hook,
+    transform_loaded_tools_session_bridge_hook,
+)
+from hermes_tool_slimmer.schemas import TOOL_DETAILS_SCHEMA, TOOL_SEARCH_SCHEMA
 from hermes_tool_slimmer.session_tools import (
     SessionLoadedState,
     _is_disabled_or_excluded,
@@ -117,6 +122,10 @@ class TestIsDisabledOrExcluded:
 
 
 class TestToolSearch:
+    def test_model_facing_schema_does_not_accept_fabricated_schemas(self) -> None:
+        properties = TOOL_SEARCH_SCHEMA["parameters"]["properties"]
+        assert "schemas" not in properties
+
     def test_search_without_schemas(self) -> None:
         result = json.loads(tool_slimmer_tool_search({"query": "github"}, schemas=[]))
         assert result["ok"] is False
@@ -165,6 +174,10 @@ class TestToolSearch:
 
 
 class TestToolDetails:
+    def test_model_facing_schema_does_not_accept_fabricated_schemas(self) -> None:
+        properties = TOOL_DETAILS_SCHEMA["parameters"]["properties"]
+        assert "schemas" not in properties
+
     def test_details_missing_name(self) -> None:
         result = json.loads(tool_slimmer_tool_details({"name": "nope"}, schemas=SCHEMAS))
         assert result["ok"] is False
@@ -203,3 +216,50 @@ class TestLoadedToolsDiagnostic:
         assert result["progressive_enabled"] is False
         assert result["count"] == 0
         assert result["tools"] == {}
+
+
+class TestSessionBridgeHooks:
+    def test_post_tool_call_bridge_loads_into_real_session(self, monkeypatch, tmp_path) -> None:
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("tool_slimmer:\n  progressive_enabled: true\n  progressive_max_loaded: 20\n  progressive_ttl_seconds: 3600\n")
+        monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+        result = json.dumps({
+            "ok": True,
+            "name": "github_search_code",
+            "loaded": True,
+            "load_action": "added",
+            "info": {"toolset": "github"},
+        })
+        post_tool_call_session_bridge_hook(
+            tool_name="tool_slimmer_tool_details",
+            args={"name": "github_search_code", "load": True},
+            result=result,
+            session_id="real-session",
+        )
+
+        real_state = SessionLoadedState(session_id="real-session")
+        anonymous_state = SessionLoadedState(session_id="__anonymous__")
+        assert real_state.is_loaded("github_search_code") is True
+        assert anonymous_state.is_loaded("github_search_code") is False
+
+    def test_transform_loaded_tools_reports_real_session(self, monkeypatch, tmp_path) -> None:
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("tool_slimmer:\n  progressive_enabled: true\n  progressive_max_loaded: 20\n  progressive_ttl_seconds: 3600\n")
+        monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+        SessionLoadedState(session_id="__anonymous__").add("terminal")
+        SessionLoadedState(session_id="real-session").add("github_search_code")
+
+        transformed = transform_loaded_tools_session_bridge_hook(
+            tool_name="tool_slimmer_loaded_tools",
+            args={},
+            result=json.dumps({"ok": True, "tools": {"terminal": {}}}),
+            session_id="real-session",
+        )
+        assert transformed is not None
+        payload = json.loads(transformed)
+        assert payload["ok"] is True
+        assert set(payload["tools"]) == {"github_search_code"}

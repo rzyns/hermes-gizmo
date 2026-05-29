@@ -784,17 +784,22 @@ def test_selector_skips_low_reduction_results(monkeypatch, tmp_path):
     assert summarize_decisions(require_session=True)["totals"]["skipped_events"] == 1
 
 
-def test_pre_llm_and_selector_hooks_registered():
+def test_pre_llm_bridge_and_selector_hooks_registered():
     calls = []
 
     class Ctx:
-        valid_hooks = {"pre_llm_call", "select_tool_schemas"}
+        valid_hooks = {"pre_llm_call", "post_tool_call", "transform_tool_result", "select_tool_schemas"}
 
         def register_hook(self, name, callback):
             calls.append((name, callback))
 
     assert maybe_register_selector_hook(Ctx()) is True
-    assert [name for name, _ in calls] == ["pre_llm_call", "select_tool_schemas"]
+    assert [name for name, _ in calls] == [
+        "pre_llm_call",
+        "post_tool_call",
+        "transform_tool_result",
+        "select_tool_schemas",
+    ]
 
 
 def test_selector_hook_registration_fails_safe_when_unknown_hook_rejected():
