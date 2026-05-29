@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.6.0 - 2026-05-29
+
+Experimental two-pass schema hydration release.
+
+### Added
+
+- Experimental `mode: two_pass` with compact deterministic tool catalogs, batched schema hydration through `tool_slimmer_hydrate_tools`, session-scoped hydrated-tool caching, decision-log metrics, CLI/doctor/status visibility, and dashboard diagnostics.
+
+## 0.5.3 - 2026-05-29
+
+Dashboard git-install repair release.
+
+### Fixed
+
+- Dashboard git installs now include the root dashboard bundle assets expected by Hermes' `/dashboard-plugins/tool-slimmer/dist/...` static routes.
+- Git-installed dashboard/API loading can import the repo-local `src/hermes_tool_slimmer` package before the repair installer has installed the Python package into the Hermes venv.
+
+## 0.5.2 - 2026-05-28
+
+Hermes update repair release.
+
+### Added
+
+- `scripts/update-hermes-and-repair-tool-slimmer.sh` to run `hermes update --yes`, preserve Hermes' normal backup behavior by default, rerun Tool Slimmer repair, and restart services after Hermes updates.
+- `scripts/self-heal-tool-slimmer.sh` with an optional user systemd unit for guarded boot/login repair when Tool Slimmer is enabled but the Hermes selector hook is missing.
+
+### Tested
+
+- Verified Hermes Agent update from v0.14.0 to v0.15.0 with default backup behavior and noninteractive `--yes` prompt handling.
+- Verified post-update Tool Slimmer repair on Hermes v0.15.0 and all-pass doctor after gateway/dashboard restart.
+- Verified the self-heal systemd unit installs, starts, exits cleanly in healthy no-op mode, and leaves gateway/dashboard active.
+
 ## 0.5.1 - 2026-05-28
 
 Live snapshot clarity release.

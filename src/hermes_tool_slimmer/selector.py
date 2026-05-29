@@ -12,6 +12,7 @@ from .corpus import build_corpus, tool_name, tool_toolset
 from .tokenizer import tokenize
 from .toolsets import is_mcp_schema
 from .types import Schema, SelectionResult, ToolDocument
+from .two_pass import HYDRATE_TOOL_NAME
 
 LOG = logging.getLogger(__name__)
 
@@ -20,12 +21,14 @@ SAFETY_TOOL_NAMES = (
     "tool_slimmer_tool_search",
     "tool_slimmer_tool_details",
     "tool_slimmer_loaded_tools",
+    HYDRATE_TOOL_NAME,
 )
 NON_TASK_TOOL_NAMES = (
     "tool_slimmer_request_full_tools",
     "tool_slimmer_tool_search",
     "tool_slimmer_tool_details",
     "tool_slimmer_loaded_tools",
+    HYDRATE_TOOL_NAME,
     "tool_slimmer_select",
     "tool_slimmer_status",
 )

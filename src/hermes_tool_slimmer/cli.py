@@ -125,6 +125,11 @@ def privacy_inventory() -> dict[str, object]:
             "selected_scores",
             "top_candidates",
             "expanded_query_tokens",
+            "two_pass_catalog_tools",
+            "two_pass_catalog_approx_tokens",
+            "two_pass_hydrated_tools",
+            "two_pass_requested_tools",
+            "two_pass_phase",
         ],
         "notes": [
             "Raw user prompts are not written to decisions.jsonl.",
@@ -211,7 +216,11 @@ def run_doctor(
         if config_arg and not target.is_file():
             raise FileNotFoundError(str(target))
         cfg = load_config(config_arg)
-        checks["config"] = _check("pass", "tool_slimmer config is valid", {"mode": cfg.mode, "top_k": cfg.top_k})
+        checks["config"] = _check(
+            "pass",
+            "tool_slimmer config is valid",
+            {"mode": cfg.mode, "top_k": cfg.top_k, "two_pass": cfg.two_pass.__dict__},
+        )
     except Exception as exc:
         checks["config"] = _check("fail", "tool_slimmer config is invalid", str(exc))
         cfg = ToolSlimmerConfig(enabled=False)
@@ -302,6 +311,11 @@ def run_doctor(
             )
     else:
         checks["anthropic_tool_search"] = _check("pass", "Anthropic Tool Search mode is not active")
+    checks["two_pass"] = _check(
+        "pass" if cfg.mode == "two_pass" else "pass",
+        "Experimental two_pass mode is active" if cfg.mode == "two_pass" else "Experimental two_pass mode is not active",
+        cfg.two_pass.__dict__,
+    )
     return {"ok": all(v["status"] != "fail" for v in checks.values()), "checks": checks}
 
 
@@ -370,6 +384,7 @@ def handle_cli(args: argparse.Namespace) -> int:
                     "mode": cfg.mode,
                     "top_k": cfg.top_k,
                     "min_score": cfg.min_score,
+                    "two_pass": cfg.two_pass.__dict__,
                     "index_path": str(store.path),
                     "total_tools_indexed": index.get("total_tools", 0),
                     "source_context": latest_live,

@@ -25,6 +25,10 @@ def test_config_full_mapping_and_nested_anthropic():
                 "tool_search_supported": True,
             },
             "aliases": {"repo": ["repository"]},
+            "two_pass": {
+                "hydrate_limit": 4,
+                "cache_hydrated_tools": False,
+            },
             "unknown": "ignored",
         }
     )
@@ -36,6 +40,8 @@ def test_config_full_mapping_and_nested_anthropic():
     assert cfg.anthropic.defer_native_tools is True
     assert cfg.anthropic.tool_search_supported is True
     assert cfg.aliases == {"repo": ["repository"]}
+    assert cfg.two_pass.hydrate_limit == 4
+    assert cfg.two_pass.cache_hydrated_tools is False
 
 
 def test_config_ignores_invalid_anthropic_section_type():
@@ -76,6 +82,7 @@ def test_config_profiles_overlay_by_platform():
                     "top_k": 4,
                     "always_include": ["memory"],
                     "always_exclude": ["cronjob"],
+                    "two_pass": {"hydrate_limit": 2},
                 },
                 "tui": {"top_k": 9},
             },
@@ -88,6 +95,7 @@ def test_config_profiles_overlay_by_platform():
     assert telegram.top_k == 4
     assert telegram.always_include == ["memory"]
     assert telegram.disabled_tools == ["cronjob"]
+    assert telegram.two_pass.hydrate_limit == 2
     assert cli.top_k == 9
 
 
@@ -105,6 +113,12 @@ def test_config_rejects_invalid_structured_types():
 def test_config_invalid_mode():
     with pytest.raises(ValueError):
         ToolSlimmerConfig.from_mapping({"mode": "bad"})
+
+
+def test_config_accepts_two_pass_mode():
+    cfg = ToolSlimmerConfig.from_mapping({"mode": "two_pass"})
+    assert cfg.mode == "two_pass"
+    assert cfg.two_pass.max_catalog_tools == 120
 
 
 def test_config_invalid_top_k():

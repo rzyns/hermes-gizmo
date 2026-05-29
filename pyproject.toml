@@ -23,11 +23,13 @@ include = [
 artifacts = [
   "/dashboard/dist/index.js",
   "/dashboard/dist/style.css",
+  "/dashboard-plugin/tool-slimmer/dashboard/dist/index.js",
+  "/dashboard-plugin/tool-slimmer/dashboard/dist/style.css",
 ]
 
 [project]
 name = "hermes-tool-slimmer"
-version = "0.5.1"
+version = "0.6.0"
 description = "Reduce Hermes Agent tool schema overhead with provider-aware tool selection"
 readme = "README.md"
 license = { text = "MIT" }

@@ -6,6 +6,7 @@ from typing import Any
 from .config import ToolSlimmerConfig, load_config
 from .index_store import IndexStore
 from .selector import ToolSelector
+from .two_pass import hydration_response
 
 FULL_TOOLS_REQUEST_MARKER = "tool_slimmer_full_tools_requested"
 
@@ -67,7 +68,20 @@ def tool_slimmer_status(args: dict, **kwargs: Any) -> str:
         cfg = load_config(args.get("config_path") if isinstance(args, dict) else None)
         store = IndexStore()
         index = store.load()
-        return _json({"ok": True, "enabled": cfg.enabled, "mode": cfg.mode, "top_k": cfg.top_k, "index": {"path": str(store.path), "exists": index is not None, "total_tools": (index or {}).get("total_tools", 0)}})
+        return _json(
+            {
+                "ok": True,
+                "enabled": cfg.enabled,
+                "mode": cfg.mode,
+                "top_k": cfg.top_k,
+                "two_pass": cfg.two_pass.__dict__,
+                "index": {
+                    "path": str(store.path),
+                    "exists": index is not None,
+                    "total_tools": (index or {}).get("total_tools", 0),
+                },
+            }
+        )
     except Exception as exc:
         return _json({"ok": False, "error": str(exc)})
 
@@ -85,6 +99,25 @@ def tool_slimmer_request_full_tools(args: dict, **kwargs: Any) -> str:
     if reason:
         payload["reason"] = str(reason)
     return _json(payload)
+
+
+def tool_slimmer_hydrate_tools(args: dict, **kwargs: Any) -> str:
+    tools = args.get("tools") if isinstance(args, dict) else None
+    if isinstance(tools, str):
+        requested = [tools]
+    elif isinstance(tools, list):
+        requested = [str(item) for item in tools if item is not None]
+    else:
+        requested = []
+    reason = args.get("reason") if isinstance(args, dict) else None
+    cfg = load_config(args.get("config_path")) if isinstance(args, dict) else load_config()
+    return _json(
+        hydration_response(
+            requested,
+            reason=str(reason) if reason else None,
+            limit=cfg.two_pass.hydrate_limit,
+        )
+    )
 
 
 def tool_slimmer_select(args: dict, **kwargs: Any) -> str:

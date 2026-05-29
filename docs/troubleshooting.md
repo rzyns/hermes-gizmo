@@ -34,6 +34,34 @@ After it runs, verify with:
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 ```
 
+## Hermes update removed active slimming
+
+Hermes updates can replace the files that Tool Slimmer patches for active schema selection. If `hermes tool-slimmer doctor` warns that `select_tool_schemas` is unavailable after updating Hermes, run:
+
+```bash
+bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+```
+
+For future Hermes updates, use the update-and-repair helper from the Tool Slimmer repo:
+
+```bash
+scripts/update-hermes-and-repair-tool-slimmer.sh
+```
+
+It runs `hermes update --yes` so Hermes does not wait for a keypress at the stash-restore prompt, keeps the default pre-update backup unless you pass `--no-backup`, reruns the Tool Slimmer installer, restarts services, and prints the doctor report.
+
+To make this repair automatic after reboot/login, enable the guarded self-heal unit:
+
+```bash
+scripts/self-heal-tool-slimmer.sh --install-systemd
+```
+
+It does not update Hermes or Tool Slimmer. It only reruns the local repair installer when `doctor` confirms Tool Slimmer is enabled and the selector hook is missing. Remove it with:
+
+```bash
+scripts/self-heal-tool-slimmer.sh --uninstall-systemd
+```
+
 ## Dashboard savings look too high
 
 Dashboard savings are estimated schema-token savings, not guaranteed billable-token savings. Tool Slimmer computes them from serialized tool-schema JSON bytes divided by 4 before and after selection. Actual provider input-token and billing deltas can differ because tokenizers, prompt caching, system prompts, conversation history, and provider-specific tool serialization are outside this estimate.
@@ -80,6 +108,24 @@ tool_slimmer:
 ```
 
 Use this only when that entry point should not receive those tools through Tool Slimmer ranking. The full-tool fallback remains available when Hermes has registered it.
+
+## Experimental two-pass mode
+
+Use `mode: two_pass` only when a deployment has very large tool catalogs or providers with tight TPM limits. It sends a compact catalog first, then relies on `tool_slimmer_hydrate_tools` to request full schemas for multiple tools in one batch. The next request exposes those full schemas and can cache them for the session.
+
+If two-pass does not expose the expected tool, check recent dashboard events for `two_pass_requested_tools`, `two_pass_hydrated_tools`, and `two_pass_phase`. If `tool_slimmer_hydrate_tools` is missing from Hermes' registered tools, two-pass falls back to keyword mode when `two_pass.fallback_to_keyword: true`.
+
+Example:
+
+```yaml
+tool_slimmer:
+  mode: two_pass
+  always_include: [memory]
+  two_pass:
+    hydrate_limit: 8
+    cache_hydrated_tools: true
+    fallback_to_keyword: true
+```
 
 ## Selector errors
 

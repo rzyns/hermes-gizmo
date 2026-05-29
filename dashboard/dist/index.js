@@ -140,6 +140,21 @@
     const latestMetrics = latestDecision && latestDecision.metrics ? latestDecision.metrics : {};
     const latestSelected = latestMetrics.selected || [];
     const latestCandidates = latestMetrics.top_candidates || [];
+    const twoPass = config.two_pass || {};
+    const recentTwoPass = recent.filter(function (event) {
+      const metrics = event && event.metrics ? event.metrics : {};
+      return metrics.mode === "two_pass" || Boolean(metrics.two_pass_phase || metrics.two_pass_fallback);
+    });
+    const latestTwoPass = recentTwoPass.length ? recentTwoPass[recentTwoPass.length - 1].metrics || {} : {};
+    const twoPassFallbacks = recentTwoPass.filter(function (event) {
+      return Boolean(event.metrics && event.metrics.two_pass_fallback);
+    }).length;
+    const twoPassMisses = recentTwoPass.filter(function (event) {
+      const metrics = event.metrics || {};
+      const requested = metrics.two_pass_requested_tools || [];
+      const hydrated = metrics.two_pass_hydrated_tools || [];
+      return requested.length > hydrated.length;
+    }).length;
     const tuneProfile = latestDecision && latestDecision.context && latestDecision.context.platform
       ? latestDecision.context.platform
       : "default";
@@ -405,6 +420,20 @@
               React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Top K"), React.createElement("span", { className: "font-courier" }, String(config.top_k ?? "unknown"))),
               React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Minimum Tools"), React.createElement("span", { className: "font-courier" }, String(config.min_total_tools ?? 0))),
               React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Minimum Reduction"), React.createElement("span", { className: "font-courier" }, String(config.min_estimated_reduction_percent ?? 0) + "%")),
+              React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Two-pass Hydrate Limit"), React.createElement("span", { className: "font-courier" }, String(twoPass.hydrate_limit ?? "off"))),
+            ),
+          ),
+          React.createElement(Card, null,
+            React.createElement(CardHeader, null, React.createElement(CardTitle, null, "Two-Pass")),
+            React.createElement(CardContent, { className: "grid gap-2 text-sm" },
+              config.mode !== "two_pass" && recentTwoPass.length === 0 && React.createElement("div", { className: "tool-slimmer-muted" }, "Experimental two-pass mode is not active."),
+              React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Recent Events"), React.createElement("span", { className: "font-courier" }, String(recentTwoPass.length))),
+              React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Last Phase"), React.createElement("span", { className: "font-courier" }, String(latestTwoPass.two_pass_phase || "none"))),
+              React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Fallbacks"), React.createElement("span", { className: "font-courier" }, String(twoPassFallbacks))),
+              React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Misses"), React.createElement("span", { className: "font-courier" }, String(twoPassMisses))),
+              React.createElement("div", { className: "flex justify-between gap-3" }, React.createElement("span", { className: "tool-slimmer-muted" }, "Catalog Tokens"), React.createElement("span", { className: "font-courier" }, String(latestTwoPass.two_pass_catalog_approx_tokens || 0))),
+              React.createElement("div", { className: "tool-slimmer-muted" }, "Hydrated"),
+              React.createElement(ToolPills, { tools: latestTwoPass.two_pass_hydrated_tools || [], limit: 6 }),
             ),
           ),
           React.createElement(Card, null,
