@@ -20,5 +20,10 @@ tool_slimmer:
   log_decisions: true
   min_total_tools: 20
   min_estimated_reduction_percent: 5.0
+  two_pass:
+    hydrate_limit: 8
+    max_catalog_tools: 120
+    cache_hydrated_tools: true
+    fallback_to_keyword: true
   fail_open: true
   dry_run: false

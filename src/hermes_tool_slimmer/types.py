@@ -29,3 +29,4 @@ class SelectionResult:
     reason: str | None = None
     score_details: dict[str, dict[str, float]] = field(default_factory=dict)
     expanded_query_tokens: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)

@@ -11,7 +11,14 @@ from .index_store import IndexStore
 from .metrics import record_decision, reduction_metrics
 from .selector import ToolSelector
 from .tools import FULL_TOOLS_REQUEST_MARKER
-from .types import Schema
+from .two_pass import (
+    HYDRATE_TOOL_NAME,
+    compact_catalog,
+    compact_catalog_metrics,
+    hydrate_tool_schema,
+    requested_hydration_tools,
+)
+from .types import Schema, SelectionResult
 
 LOG = logging.getLogger(__name__)
 
@@ -21,6 +28,7 @@ FALLBACK_INSTRUCTION = (
 )
 
 _TOOL_NAME_RE = re.compile(r"\b[a-z][a-z0-9_]{2,}\b")
+_HYDRATED_BY_SESSION: dict[str, set[str]] = {}
 
 
 def _load_config_for_hook() -> ToolSlimmerConfig:
@@ -65,6 +73,80 @@ def _metrics_for_selection(
             1 for schema in selected if isinstance(schema, dict) and schema.get("defer_loading") is True
         )
     return metrics
+
+
+def _schema_by_name(schemas: list[Schema]) -> dict[str, Schema]:
+    out: dict[str, Schema] = {}
+    for schema in schemas:
+        if not isinstance(schema, dict):
+            continue
+        name = str(schema.get("name") or (schema.get("function") or {}).get("name") or "")
+        if name and name not in out:
+            out[name] = schema
+    return out
+
+
+def _always_include_schemas(schemas_by_name: dict[str, Schema], cfg: ToolSlimmerConfig) -> tuple[list[Schema], list[str]]:
+    selected: list[Schema] = []
+    names: list[str] = []
+    for name in [*cfg.always_include, "tool_slimmer_request_full_tools", HYDRATE_TOOL_NAME]:
+        if name in schemas_by_name and name not in names:
+            selected.append(schemas_by_name[name])
+            names.append(name)
+    return selected, names
+
+
+def _two_pass_selected_schemas(
+    schemas: list[Schema],
+    cfg: ToolSlimmerConfig,
+    conversation_history: list[Any] | None,
+    session_id: str | None,
+) -> tuple[list[Schema], dict[str, object], str | None]:
+    schemas_by_name = _schema_by_name(schemas)
+    catalog = compact_catalog(schemas, cfg)
+    catalog_names = {item.name for item in catalog}
+    hydrate_schema = schemas_by_name.get(HYDRATE_TOOL_NAME)
+    if hydrate_schema is None:
+        if cfg.two_pass.fallback_to_keyword:
+            return [], compact_catalog_metrics(catalog, schemas), "missing_hydrate_tool"
+        return schemas, compact_catalog_metrics(catalog, schemas), "missing_hydrate_tool_fail_open"
+
+    selected, always_names = _always_include_schemas(schemas_by_name, cfg)
+    selected_names = set(always_names)
+
+    requested = [name for name in requested_hydration_tools(conversation_history) if name in schemas_by_name]
+    requested = requested[: cfg.two_pass.hydrate_limit]
+    cache_key = session_id or ""
+    cached = _HYDRATED_BY_SESSION.setdefault(cache_key, set()) if cache_key else set()
+    if requested and cfg.two_pass.cache_hydrated_tools and cache_key:
+        cached.update(requested)
+    hydrated = sorted((cached if cfg.two_pass.cache_hydrated_tools else set()) | set(requested))
+    hydrated = [name for name in hydrated if name in schemas_by_name and name in catalog_names]
+    hydrated = hydrated[: cfg.two_pass.hydrate_limit]
+
+    for name in hydrated:
+        if name not in selected_names:
+            selected.append(schemas_by_name[name])
+            selected_names.add(name)
+
+    dynamic_hydrate = hydrate_tool_schema(hydrate_schema, catalog)
+    selected = [dynamic_hydrate if _tool_schema_name(schema) == HYDRATE_TOOL_NAME else schema for schema in selected]
+    metadata = compact_catalog_metrics(catalog, schemas)
+    metadata.update(
+        {
+            "two_pass_requested_tools": requested,
+            "two_pass_hydrated_tools": hydrated,
+            "two_pass_cached_tools": sorted(cached) if cfg.two_pass.cache_hydrated_tools else [],
+            "two_pass_cache_scope": "session" if cache_key and cfg.two_pass.cache_hydrated_tools else "request",
+            "two_pass_phase": "hydrate" if hydrated else "catalog",
+        }
+    )
+    return selected, metadata, None
+
+
+def _tool_schema_name(schema: Schema) -> str:
+    function = schema.get("function") if isinstance(schema, dict) else {}
+    return str(schema.get("name") or (function.get("name") if isinstance(function, dict) else "") or "")
 
 
 def _contains_full_tools_request(value: Any) -> bool:
@@ -227,29 +309,70 @@ def select_tool_schemas_callback(
 
         effective_cfg = cfg
         query = _selection_query(user_message, conversation_history, schemas)
-        result = ToolSelector(effective_cfg).select(
-            query,
-            schemas,
-            conversation_history=conversation_history,
-            model=model,
-            platform=platform,
-            provider=provider,
-            session_id=session_id,
-            **kwargs,
-        )
-        selected = maybe_anthropic_tools(
-            provider,
-            model,
-            schemas if cfg.mode == "anthropic_tool_search" else result.selected,
-            result.selected_names,
-            effective_cfg,
-            explicit_capability=cfg.anthropic.tool_search_supported,
-        )
+        if cfg.mode == "two_pass":
+            selected, two_pass_metrics, two_pass_fallback = _two_pass_selected_schemas(
+                schemas,
+                cfg,
+                conversation_history,
+                session_id,
+            )
+            if two_pass_fallback == "missing_hydrate_tool" and cfg.two_pass.fallback_to_keyword:
+                fallback_cfg = ToolSlimmerConfig.from_mapping(
+                    {**cfg.__dict__, "mode": "keyword", "anthropic": cfg.anthropic.__dict__, "two_pass": cfg.two_pass.__dict__}
+                )
+                result = ToolSelector(fallback_cfg).select(
+                    query,
+                    schemas,
+                    conversation_history=conversation_history,
+                    model=model,
+                    platform=platform,
+                    provider=provider,
+                    session_id=session_id,
+                    **kwargs,
+                )
+                selected = result.selected
+                effective_cfg = fallback_cfg
+                two_pass_metrics["two_pass_fallback"] = two_pass_fallback
+            else:
+                selected_names = [_tool_schema_name(schema) for schema in selected]
+                selected_name_set = set(selected_names)
+                result = SelectionResult(
+                    mode=cfg.mode,
+                    selected=selected,
+                    selected_names=selected_names,
+                    scores={},
+                    total_tools=len(schemas),
+                    always_included=[
+                        name for name in [*cfg.always_include, "tool_slimmer_request_full_tools", HYDRATE_TOOL_NAME]
+                        if name in selected_name_set
+                    ],
+                    reason=two_pass_fallback,
+                    metadata=two_pass_metrics,
+                )
+        else:
+            result = ToolSelector(effective_cfg).select(
+                query,
+                schemas,
+                conversation_history=conversation_history,
+                model=model,
+                platform=platform,
+                provider=provider,
+                session_id=session_id,
+                **kwargs,
+            )
+            selected = maybe_anthropic_tools(
+                provider,
+                model,
+                schemas if cfg.mode == "anthropic_tool_search" else result.selected,
+                result.selected_names,
+                effective_cfg,
+                explicit_capability=cfg.anthropic.tool_search_supported,
+            )
         if cfg.mode == "anthropic_tool_search" and selected is schemas:
             # Unsupported provider path: fall back to deterministic keyword selection,
             # not the full catalog, unless the user explicitly chose eager mode.
             fallback_cfg = ToolSlimmerConfig.from_mapping(
-                {**cfg.__dict__, "mode": "keyword", "anthropic": cfg.anthropic.__dict__}
+                {**cfg.__dict__, "mode": "keyword", "anthropic": cfg.anthropic.__dict__, "two_pass": cfg.two_pass.__dict__}
             )
             result = ToolSelector(fallback_cfg).select(
                 query,
@@ -264,6 +387,8 @@ def select_tool_schemas_callback(
             selected = result.selected
             effective_cfg = fallback_cfg
         metrics = _metrics_for_selection(effective_cfg.mode, schemas, selected, result.selected, result.always_included)
+        if result.metadata:
+            metrics.update(result.metadata)
         metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)
         metrics["selected_scores"] = {name: result.score_details.get(name, {}) for name in result.selected_names}
         metrics["top_candidates"] = [
@@ -273,7 +398,7 @@ def select_tool_schemas_callback(
         metrics["expanded_query_tokens"] = result.expanded_query_tokens
         raw_reduction = metrics["estimated_reduction_percent"]
         reduction_percent = raw_reduction if isinstance(raw_reduction, (int, float)) else 0.0
-        if reduction_percent < cfg.min_estimated_reduction_percent:
+        if effective_cfg.mode != "two_pass" and reduction_percent < cfg.min_estimated_reduction_percent:
             selected = schemas
             metrics = reduction_metrics(effective_cfg.mode, schemas, selected, result.always_included)
             metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)

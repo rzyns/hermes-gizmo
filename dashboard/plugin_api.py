@@ -170,6 +170,7 @@ async def status() -> dict[str, Any]:
             "never_defer": cfg.never_defer,
             "aliases": cfg.aliases,
             "profiles": cfg.profiles,
+            "two_pass": cfg.two_pass.__dict__,
         },
         "index": {
             "path": str(store.path),

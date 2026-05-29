@@ -109,6 +109,24 @@ tool_slimmer:
 
 Use this only when that entry point should not receive those tools through Tool Slimmer ranking. The full-tool fallback remains available when Hermes has registered it.
 
+## Experimental two-pass mode
+
+Use `mode: two_pass` only when a deployment has very large tool catalogs or providers with tight TPM limits. It sends a compact catalog first, then relies on `tool_slimmer_hydrate_tools` to request full schemas for multiple tools in one batch. The next request exposes those full schemas and can cache them for the session.
+
+If two-pass does not expose the expected tool, check recent dashboard events for `two_pass_requested_tools`, `two_pass_hydrated_tools`, and `two_pass_phase`. If `tool_slimmer_hydrate_tools` is missing from Hermes' registered tools, two-pass falls back to keyword mode when `two_pass.fallback_to_keyword: true`.
+
+Example:
+
+```yaml
+tool_slimmer:
+  mode: two_pass
+  always_include: [memory]
+  two_pass:
+    hydrate_limit: 8
+    cache_hydrated_tools: true
+    fallback_to_keyword: true
+```
+
 ## Selector errors
 
 Keep `fail_open: true` for normal use. Errors then preserve the original full schema list.

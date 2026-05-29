@@ -16,7 +16,8 @@ from hermes_tool_slimmer.cli import _load_prompts, _load_schemas, _tool_names
 from hermes_tool_slimmer.integration import FALLBACK_INSTRUCTION, maybe_register_selector_hook, pre_llm_diagnostic_hook, select_tool_schemas_callback
 from hermes_tool_slimmer.metrics import read_decisions, summarize_decisions
 from hermes_tool_slimmer.index_store import IndexStore
-from hermes_tool_slimmer.tools import FULL_TOOLS_REQUEST_MARKER, _live_hermes_schemas, tool_slimmer_request_full_tools, tool_slimmer_select, tool_slimmer_status
+from hermes_tool_slimmer.tools import FULL_TOOLS_REQUEST_MARKER, _live_hermes_schemas, tool_slimmer_hydrate_tools, tool_slimmer_request_full_tools, tool_slimmer_select, tool_slimmer_status
+from hermes_tool_slimmer.two_pass import HYDRATE_REQUEST_MARKER
 
 
 def _patch_dashboard_modules(module, monkeypatch):
@@ -67,6 +68,7 @@ def test_plugin_register_wires_tools_commands_and_hooks(monkeypatch):
     assert ("tool", "tool_slimmer_status") in calls
     assert ("tool", "tool_slimmer_select") in calls
     assert ("tool", "tool_slimmer_request_full_tools") in calls
+    assert ("tool", "tool_slimmer_hydrate_tools") in calls
     assert ("command", "tool-slimmer") in calls
     assert ("cli", "tool-slimmer") in calls
     assert ("hook", "select_tool_schemas") in calls
@@ -77,10 +79,12 @@ def test_plugin_handlers_return_json_strings(monkeypatch, tmp_path):
     status = tool_slimmer_status({})
     select = tool_slimmer_select({"query": "read", "schemas": [{"name": "read_file", "description": "Read"}]})
     request_full = tool_slimmer_request_full_tools({"reason": "missing skill tool"})
+    hydrate = tool_slimmer_hydrate_tools({"tools": ["web_search"], "reason": "need web"})
     slash = handle_slash_command("select read", schemas=[{"name": "read_file", "description": "Read"}])
     assert json.loads(status)["ok"] is True
     assert json.loads(select)["ok"] is True
     assert json.loads(request_full)[FULL_TOOLS_REQUEST_MARKER] is True
+    assert json.loads(hydrate)[HYDRATE_REQUEST_MARKER] is True
     assert json.loads(slash)["ok"] is True
 
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 - 2026-05-29
+
+Experimental two-pass schema hydration release.
+
+### Added
+
+- Experimental `mode: two_pass` with compact deterministic tool catalogs, batched schema hydration through `tool_slimmer_hydrate_tools`, session-scoped hydrated-tool caching, decision-log metrics, CLI/doctor/status visibility, and dashboard diagnostics.
+
 ## 0.5.3 - 2026-05-29
 
 Dashboard git-install repair release.

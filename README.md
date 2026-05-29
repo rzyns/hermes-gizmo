@@ -141,7 +141,7 @@ plugins:
 
 tool_slimmer:
   enabled: true
-  mode: keyword        # eager | keyword | hybrid | anthropic_tool_search
+  mode: keyword        # eager | keyword | hybrid | anthropic_tool_search | two_pass
   top_k: 8             # selected after always_include
   always_include: [terminal, read_file, write_file, patch, search_files]
   always_exclude: []   # alias for disabled_tools; useful for noisy tools in text-only deployments
@@ -154,6 +154,11 @@ tool_slimmer:
   min_score: 0.25
   aliases:
     browse: [browser, navigate, url, website]
+  two_pass:
+    hydrate_limit: 8
+    max_catalog_tools: 120
+    cache_hydrated_tools: true
+    fallback_to_keyword: true
   profiles:
     telegram:
       top_k: 4
@@ -168,6 +173,14 @@ tool_slimmer:
   fail_open: true      # selector errors preserve the original full schema list
   dry_run: false       # true logs/injects diagnostics but does not alter schemas
 ```
+
+### Experimental Two-Pass Mode
+
+`mode: two_pass` is opt-in and experimental. It is intended for very large tool catalogs, text-first gateways, or TPM-capped providers where even a keyword-trimmed full-schema set is too expensive.
+
+In two-pass mode, the first request receives your `always_include` tools plus `tool_slimmer_hydrate_tools`. That hydration tool carries a compact deterministic catalog of available tool names, one-line descriptions, toolsets, and tags. If the model needs tools, it calls `tool_slimmer_hydrate_tools` with multiple names in one batch; the next request exposes those full schemas and caches them for the session when `cache_hydrated_tools: true`.
+
+Keep `keyword` as the default for normal use. Two-pass can add one extra model round trip before tool use, and current Hermes history may still record the compact hydration tool call. It avoids external delegation and avoids injecting the full catalog on ordinary no-tool turns.
 
 ## Commands
 

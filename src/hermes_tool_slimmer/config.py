@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 
-VALID_MODES = {"eager", "keyword", "hybrid", "anthropic_tool_search"}
+VALID_MODES = {"eager", "keyword", "hybrid", "anthropic_tool_search", "two_pass"}
 _LIST_FIELDS = {
     "always_exclude",
     "always_include",
@@ -21,6 +21,7 @@ _LIST_FIELDS = {
 _BOOL_FIELDS = {"enabled", "include_mcp_tools", "include_native_tools", "log_decisions", "fail_open", "dry_run"}
 _ANTHROPIC_LIST_FIELDS = {"never_defer"}
 _ANTHROPIC_BOOL_FIELDS = {"defer_mcp_tools", "defer_native_tools", "tool_search_supported"}
+_TWO_PASS_BOOL_FIELDS = {"cache_hydrated_tools", "fallback_to_keyword", "include_toolsets"}
 _PROFILE_ALIASES = {
     "chat": "cli",
     "console": "cli",
@@ -39,6 +40,15 @@ class AnthropicConfig:
     defer_native_tools: bool = False
     tool_search_supported: bool | None = None
     never_defer: list[str] = field(default_factory=lambda: ["terminal", "read_file", "search_files"])
+
+
+@dataclass
+class TwoPassConfig:
+    max_catalog_tools: int = 120
+    hydrate_limit: int = 8
+    cache_hydrated_tools: bool = True
+    fallback_to_keyword: bool = True
+    include_toolsets: bool = True
 
 
 @dataclass
@@ -61,6 +71,7 @@ class ToolSlimmerConfig:
     aliases: dict[str, list[str]] = field(default_factory=dict)
     profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
     anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
+    two_pass: TwoPassConfig = field(default_factory=TwoPassConfig)
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> "ToolSlimmerConfig":
@@ -69,8 +80,11 @@ class ToolSlimmerConfig:
             raw["disabled_tools"] = raw["always_exclude"]
         profiles_raw = raw.pop("profiles", {}) or {}
         anthropic_raw = raw.pop("anthropic", {}) or {}
+        two_pass_raw = raw.pop("two_pass", {}) or {}
         if not isinstance(anthropic_raw, dict):
             anthropic_raw = {}
+        if not isinstance(two_pass_raw, dict):
+            two_pass_raw = {}
         raw = _normalize_mapping(raw, cls.__dataclass_fields__, _LIST_FIELDS, _BOOL_FIELDS)
         raw["profiles"] = _normalize_profiles(profiles_raw)
         anthropic_raw = _normalize_mapping(
@@ -80,8 +94,15 @@ class ToolSlimmerConfig:
             _ANTHROPIC_BOOL_FIELDS,
             allow_none_booleans=True,
         )
+        two_pass_raw = _normalize_mapping(
+            two_pass_raw,
+            TwoPassConfig.__dataclass_fields__,
+            set(),
+            _TWO_PASS_BOOL_FIELDS,
+        )
         cfg = cls(**{key: value for key, value in raw.items() if key in cls.__dataclass_fields__ and key != "anthropic"})
         cfg.anthropic = AnthropicConfig(**{key: value for key, value in anthropic_raw.items() if key in AnthropicConfig.__dataclass_fields__})
+        cfg.two_pass = TwoPassConfig(**{key: value for key, value in two_pass_raw.items() if key in TwoPassConfig.__dataclass_fields__})
         cfg.validate()
         return cfg
 
@@ -97,6 +118,7 @@ class ToolSlimmerConfig:
 
         raw = asdict(self)
         raw["anthropic"] = asdict(self.anthropic)
+        raw["two_pass"] = asdict(self.two_pass)
         raw["profiles"] = self.profiles
         for overlay in overlays:
             _merge_profile_overlay(raw, overlay)
@@ -126,6 +148,14 @@ class ToolSlimmerConfig:
             raise ValueError("tool_slimmer.min_score must be finite")
         if self.min_score < 0:
             raise ValueError("tool_slimmer.min_score must be >= 0")
+        if not isinstance(self.two_pass.max_catalog_tools, int) or isinstance(self.two_pass.max_catalog_tools, bool) or not math.isfinite(self.two_pass.max_catalog_tools):
+            raise ValueError("tool_slimmer.two_pass.max_catalog_tools must be a finite integer")
+        if self.two_pass.max_catalog_tools < 1:
+            raise ValueError("tool_slimmer.two_pass.max_catalog_tools must be >= 1")
+        if not isinstance(self.two_pass.hydrate_limit, int) or isinstance(self.two_pass.hydrate_limit, bool) or not math.isfinite(self.two_pass.hydrate_limit):
+            raise ValueError("tool_slimmer.two_pass.hydrate_limit must be a finite integer")
+        if self.two_pass.hydrate_limit < 1:
+            raise ValueError("tool_slimmer.two_pass.hydrate_limit must be >= 1")
 
 
 def _normalize_string_list(value: Any, field_name: str) -> list[str]:
@@ -173,6 +203,14 @@ def _normalize_profiles(value: Any) -> dict[str, dict[str, Any]]:
                 _ANTHROPIC_BOOL_FIELDS,
                 allow_none_booleans=True,
             )
+        two_pass_raw = profile.pop("two_pass", None)
+        if isinstance(two_pass_raw, dict):
+            normalized["two_pass"] = _normalize_mapping(
+                two_pass_raw,
+                TwoPassConfig.__dataclass_fields__,
+                set(),
+                _TWO_PASS_BOOL_FIELDS,
+            )
         profiles[_profile_name(str(name)) or str(name)] = normalized
     return profiles
 
@@ -191,6 +229,11 @@ def _merge_profile_overlay(raw: dict[str, Any], overlay: dict[str, Any]) -> None
             if not isinstance(anthropic, dict):
                 anthropic = {}
             raw["anthropic"] = {**anthropic, **value}
+        elif key == "two_pass" and isinstance(value, dict):
+            two_pass = raw.get("two_pass")
+            if not isinstance(two_pass, dict):
+                two_pass = {}
+            raw["two_pass"] = {**two_pass, **value}
         elif key == "aliases" and isinstance(value, dict):
             aliases = raw.get("aliases")
             if not isinstance(aliases, dict):
