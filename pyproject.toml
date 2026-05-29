@@ -21,13 +21,15 @@ include = [
   "/pyproject.toml",
 ]
 artifacts = [
+  "/dashboard/dist/index.js",
+  "/dashboard/dist/style.css",
   "/dashboard-plugin/tool-slimmer/dashboard/dist/index.js",
   "/dashboard-plugin/tool-slimmer/dashboard/dist/style.css",
 ]
 
 [project]
 name = "hermes-tool-slimmer"
-version = "0.5.2"
+version = "0.5.3"
 description = "Reduce Hermes Agent tool schema overhead with provider-aware tool selection"
 readme = "README.md"
 license = { text = "MIT" }

@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
 router = APIRouter()
+
+
+def _ensure_local_src_path() -> None:
+    src_dir = Path(__file__).resolve().parents[1] / "src"
+    if src_dir.exists() and str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
 
 
 def _safe_int(value: Any) -> int:
@@ -15,6 +23,7 @@ def _safe_int(value: Any) -> int:
 
 
 def _load_modules():
+    _ensure_local_src_path()
     try:
         from hermes_tool_slimmer.advisor import apply_recommended_config, apply_tool_preference, analyze_config, rollback_config
         from hermes_tool_slimmer.cli import eval_markdown, eval_prompts, privacy_inventory, run_doctor
