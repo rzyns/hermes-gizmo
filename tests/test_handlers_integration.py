@@ -1,6 +1,8 @@
 import json
 import importlib.util
+import os
 import shutil
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -1373,3 +1375,63 @@ def test_installer_copies_source_bundle_for_dashboard_import_fallback():
 
     assert 'cp -R "$ROOT_DIR/src/hermes_tool_slimmer" "$TMP_DIR/src/"' in installer
     assert 'cp "$ROOT_DIR/scripts/troubleshoot-hermes-tool-slimmer.sh" "$TMP_DIR/scripts/"' in installer
+
+
+def test_scripts_treat_hermes_bin_env_as_explicit():
+    root = Path(__file__).resolve().parents[1]
+    for relative in [
+        "scripts/install-hermes-tool-slimmer.sh",
+        "scripts/self-heal-tool-slimmer.sh",
+        "scripts/troubleshoot-hermes-tool-slimmer.sh",
+        "scripts/update-hermes-and-repair-tool-slimmer.sh",
+    ]:
+        text = (root / relative).read_text()
+        assert 'HERMES_BIN_FROM_ENV="${HERMES_BIN:-}"' in text
+        assert 'if [[ -n "$HERMES_BIN_FROM_ENV" ]]; then' in text
+        assert 'HERMES_BIN="${HERMES_BIN_FROM_ENV:-$(default_hermes_bin)}"' in text
+
+
+def test_troubleshooter_honors_hermes_bin_env_over_path(monkeypatch, tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    trusted_dir = tmp_path / "trusted"
+    path_dir = tmp_path / "path"
+    hermes_home = tmp_path / "home"
+    trusted_dir.mkdir()
+    path_dir.mkdir()
+    hermes_home.mkdir()
+
+    trusted = trusted_dir / "hermes"
+    trusted.write_text(
+        """#!/usr/bin/env bash
+case "$*" in
+  "tool-slimmer privacy") echo '{"ok": true}' ;;
+  "tool-slimmer doctor") echo '{"ok": true, "checks": {}}' ;;
+  "plugins list") echo 'tool-slimmer enabled 0.6.4' ;;
+  *) echo "trusted $*" ;;
+esac
+"""
+    )
+    trusted.chmod(0o755)
+    (trusted_dir / "python").symlink_to(sys.executable)
+
+    path_hermes = path_dir / "hermes"
+    path_hermes.write_text("#!/usr/bin/env bash\necho PATH_HERMES_USED\nexit 99\n")
+    path_hermes.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "HERMES_BIN": str(trusted),
+        "HERMES_HOME": str(hermes_home),
+        "PATH": f"{path_dir}:/usr/bin:/bin",
+        "PYTHONPATH": str(root / "src"),
+    }
+    result = subprocess.run(
+        ["bash", str(root / "scripts" / "troubleshoot-hermes-tool-slimmer.sh"), "--quick"],
+        check=True,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert f"Hermes: {trusted.resolve()}" in result.stdout
+    assert "PATH_HERMES_USED" not in result.stdout

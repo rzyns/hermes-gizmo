@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERMES_BIN_FROM_ENV="${HERMES_BIN:-}"
 HERMES_BIN_EXPLICIT=0
 UPDATE_BACKUP_ARGS=()
 INSTALL_ARGS=()
@@ -16,7 +17,10 @@ default_hermes_bin() {
   command -v hermes || true
 }
 
-HERMES_BIN="${HERMES_BIN:-$(default_hermes_bin)}"
+if [[ -n "$HERMES_BIN_FROM_ENV" ]]; then
+  HERMES_BIN_EXPLICIT=1
+fi
+HERMES_BIN="${HERMES_BIN_FROM_ENV:-$(default_hermes_bin)}"
 
 usage() {
   cat <<'USAGE'

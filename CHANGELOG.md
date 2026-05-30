@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.4 - 2026-05-30
+
+Installer environment override repair.
+
+### Fixed
+
+- Installer, updater, self-heal, and troubleshooting scripts now treat an environment-provided `HERMES_BIN` as an explicit trusted binary, matching the documented `HERMES_BIN=... bash ...` install flow and avoiding fallback to `command -v hermes`.
+
 ## 0.6.3 - 2026-05-30
 
 Security hardening release.
