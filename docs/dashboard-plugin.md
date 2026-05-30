@@ -7,7 +7,7 @@ Hermes Tool Slimmer includes a dashboard plugin for visibility into selector act
 From a terminal on the Hermes machine:
 
 ```bash
-cd /tmp
+cd "$HOME"
 git clone https://github.com/alias8818/hermes-tool-slimmer.git
 cd hermes-tool-slimmer
 ```
@@ -30,15 +30,15 @@ That script:
 If a restricted agent approval layer blocks direct script execution after downloading the repo, approve or run the explicit shell invocation instead:
 
 ```bash
-bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 ```
 
-That is the same installer. The block is environmental, not a dashboard plugin failure.
+That is the same installer. The block is environmental, not a dashboard plugin failure. Avoid running installer scripts from a predictable shared `/tmp` checkout.
 
 If there are multiple `hermes` binaries, force the venv launcher:
 
 ```bash
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 ```
 
 This keeps the plugin install and Hermes CLI command in the same Python environment.

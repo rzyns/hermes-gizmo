@@ -15,10 +15,10 @@ It includes config shape, doctor checks, index counts, live snapshot summaries, 
 If Hermes or an agent says the Tool Slimmer repo downloaded correctly but the installer script was blocked, this is usually an execution approval issue. Run the same command from a normal terminal on the Hermes machine:
 
 ```bash
-bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 ```
 
-If the repo is somewhere else, replace `/tmp/hermes-tool-slimmer` with that path. The installer performs the remaining normal steps: package install, dashboard plugin copy, plugin enablement, selector-hook patch check, service restart, and `hermes tool-slimmer doctor`.
+If the repo is somewhere else, replace `$HOME/hermes-tool-slimmer` with that path. Avoid running installer scripts from a predictable shared `/tmp` checkout. The installer performs the remaining normal steps: package install, dashboard plugin copy, plugin enablement, selector-hook patch check, service restart, and `hermes tool-slimmer doctor`.
 
 Using `bash ...` avoids needing the script executable bit. If the environment still blocks it, approve that exact command in the approval prompt.
 
@@ -31,14 +31,14 @@ $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 For reinstall/repair, force that same launcher:
 
 ```bash
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 ```
 
 If Hermes Agent is handling the install, tell it:
 
 ```text
 The repo is downloaded. Continue by running:
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 If this command is blocked, request approval for that exact command.
 After it runs, verify with:
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
@@ -49,7 +49,7 @@ $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 Hermes updates can replace the files that Tool Slimmer patches for active schema selection. If `hermes tool-slimmer doctor` warns that `select_tool_schemas` is unavailable after updating Hermes, run:
 
 ```bash
-bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 ```
 
 Do not manually apply `docs/hermes-core-selector-hook.patch` for a normal install. That file is an upstream patch artifact for Hermes core development; it must be applied from a matching Hermes checkout and may not match released source layouts. The installer contains the compatibility patcher used for released Hermes versions.

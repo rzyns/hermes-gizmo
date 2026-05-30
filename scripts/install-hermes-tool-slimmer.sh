@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_NAME="tool-slimmer"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERMES_BIN_EXPLICIT=0
 PATCH_CORE=1
 RESTART_SERVICES=1
 
@@ -46,6 +47,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --hermes-bin)
       HERMES_BIN="${2:-}"
+      HERMES_BIN_EXPLICIT=1
       shift 2
       ;;
     --hermes-home)
@@ -63,6 +65,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$HERMES_BIN_EXPLICIT" != "1" ]]; then
+  HERMES_BIN="$(default_hermes_bin)"
+fi
 
 step() {
   printf '\n==> %s\n' "$1"
@@ -453,7 +459,7 @@ else
 fi
 
 step "Final health report"
-if bash "$ROOT_DIR/scripts/troubleshoot-hermes-tool-slimmer.sh" --hermes-bin "$HERMES_BIN" --hermes-home "$HERMES_HOME"; then
+if bash "$ROOT_DIR/scripts/troubleshoot-hermes-tool-slimmer.sh" --quick --hermes-bin "$HERMES_BIN" --hermes-home "$HERMES_HOME"; then
   echo "Install completed."
 else
   echo "Install completed with health warnings; see report above."

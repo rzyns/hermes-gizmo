@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import logging
+import json
 import re
 from time import perf_counter
 from typing import Any
 
 from .anthropic_tool_search import maybe_anthropic_tools
 from .config import ToolSlimmerConfig, load_config
+from .corpus import tool_name
 from .index_store import IndexStore
 from .metrics import record_decision, reduction_metrics
 from .native import native_tool_search_active, native_tool_search_bridge_names
+from .policy import eligible_schemas
 from .selector import ToolSelector
 from .tools import FULL_TOOLS_REQUEST_MARKER
 from .two_pass import (
@@ -34,7 +37,7 @@ _HYDRATED_BY_SESSION: dict[str, set[str]] = {}
 
 def _load_config_for_hook() -> ToolSlimmerConfig:
     try:
-        return load_config()
+        return load_config(strict=True)
     except Exception as exc:
         LOG.warning("tool-slimmer config load failed; disabling selector for this request: %s", exc)
         return ToolSlimmerConfig(enabled=False)
@@ -81,7 +84,7 @@ def _schema_by_name(schemas: list[Schema]) -> dict[str, Schema]:
     for schema in schemas:
         if not isinstance(schema, dict):
             continue
-        name = str(schema.get("name") or (schema.get("function") or {}).get("name") or "")
+        name = tool_name(schema)
         if name and name not in out:
             out[name] = schema
     return out
@@ -103,6 +106,7 @@ def _two_pass_selected_schemas(
     conversation_history: list[Any] | None,
     session_id: str | None,
 ) -> tuple[list[Schema], dict[str, object], str | None]:
+    schemas = eligible_schemas(schemas, cfg)
     schemas_by_name = _schema_by_name(schemas)
     catalog = compact_catalog(schemas, cfg)
     catalog_names = {item.name for item in catalog}
@@ -151,14 +155,19 @@ def _tool_schema_name(schema: Schema) -> str:
 
 
 def _contains_full_tools_request(value: Any) -> bool:
-    if isinstance(value, dict):
-        if value.get(FULL_TOOLS_REQUEST_MARKER) is True:
-            return True
-        return any(_contains_full_tools_request(item) for item in value.values())
-    if isinstance(value, list | tuple):
-        return any(_contains_full_tools_request(item) for item in value)
-    if isinstance(value, str):
-        return FULL_TOOLS_REQUEST_MARKER in value
+    if not isinstance(value, dict):
+        return False
+    if value.get("role") != "tool":
+        return False
+    content = value.get("content")
+    if isinstance(content, dict):
+        return content.get(FULL_TOOLS_REQUEST_MARKER) is True
+    if isinstance(content, str):
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            return False
+        return isinstance(payload, dict) and payload.get(FULL_TOOLS_REQUEST_MARKER) is True
     return False
 
 
@@ -197,7 +206,7 @@ def _text_content(value: Any) -> str:
 
 def _recent_tool_mentions(conversation_history: list[Any] | None, schemas: list[Schema]) -> list[str]:
     known_names = {
-        str(schema.get("name") or (schema.get("function") or {}).get("name") or "")
+        _tool_schema_name(schema)
         for schema in schemas
         if isinstance(schema, dict)
     }
@@ -287,8 +296,9 @@ def select_tool_schemas_callback(
                 except Exception as exc:
                     LOG.warning("tool-slimmer decision logging failed: %s", exc)
             return None
+        policy_schemas = eligible_schemas(schemas, cfg)
         if _full_tools_requested(conversation_history):
-            metrics = reduction_metrics(cfg.mode, schemas, schemas, [])
+            metrics = reduction_metrics(cfg.mode, schemas, policy_schemas, [])
             metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)
             metrics["skipped"] = True
             metrics["skip_reason"] = "full_tools_requested"
@@ -308,9 +318,9 @@ def select_tool_schemas_callback(
                     )
                 except Exception as exc:
                     LOG.warning("tool-slimmer decision logging failed: %s", exc)
-            return None if cfg.dry_run else schemas
+            return None if cfg.dry_run else policy_schemas
         if len(schemas) < cfg.min_total_tools:
-            metrics = reduction_metrics(cfg.mode, schemas, schemas, [])
+            metrics = reduction_metrics(cfg.mode, schemas, policy_schemas, [])
             metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)
             metrics["skipped"] = True
             metrics["skip_reason"] = "below_min_total_tools"
@@ -331,13 +341,15 @@ def select_tool_schemas_callback(
                     )
                 except Exception as exc:
                     LOG.warning("tool-slimmer decision logging failed: %s", exc)
-            return None
+            if cfg.dry_run or len(policy_schemas) == len(schemas):
+                return None
+            return policy_schemas
 
         effective_cfg = cfg
-        query = _selection_query(user_message, conversation_history, schemas)
+        query = _selection_query(user_message, conversation_history, policy_schemas)
         if cfg.mode == "two_pass":
             selected, two_pass_metrics, two_pass_fallback = _two_pass_selected_schemas(
-                schemas,
+                policy_schemas,
                 cfg,
                 conversation_history,
                 session_id,
@@ -348,7 +360,7 @@ def select_tool_schemas_callback(
                 )
                 result = ToolSelector(fallback_cfg).select(
                     query,
-                    schemas,
+                    policy_schemas,
                     conversation_history=conversation_history,
                     model=model,
                     platform=platform,
@@ -378,7 +390,7 @@ def select_tool_schemas_callback(
         else:
             result = ToolSelector(effective_cfg).select(
                 query,
-                schemas,
+                policy_schemas,
                 conversation_history=conversation_history,
                 model=model,
                 platform=platform,
@@ -389,12 +401,12 @@ def select_tool_schemas_callback(
             selected = maybe_anthropic_tools(
                 provider,
                 model,
-                schemas if cfg.mode == "anthropic_tool_search" else result.selected,
+                policy_schemas if cfg.mode == "anthropic_tool_search" else result.selected,
                 result.selected_names,
                 effective_cfg,
                 explicit_capability=cfg.anthropic.tool_search_supported,
             )
-        if cfg.mode == "anthropic_tool_search" and selected is schemas:
+        if cfg.mode == "anthropic_tool_search" and selected is policy_schemas:
             # Unsupported provider path: fall back to deterministic keyword selection,
             # not the full catalog, unless the user explicitly chose eager mode.
             fallback_cfg = ToolSlimmerConfig.from_mapping(
@@ -402,7 +414,7 @@ def select_tool_schemas_callback(
             )
             result = ToolSelector(fallback_cfg).select(
                 query,
-                schemas,
+                policy_schemas,
                 conversation_history=conversation_history,
                 model=model,
                 platform=platform,
@@ -421,17 +433,17 @@ def select_tool_schemas_callback(
             {"name": name, "score": score, "details": result.score_details.get(name, {})}
             for name, score in sorted(result.scores.items(), key=lambda item: item[1], reverse=True)[:10]
         ]
-        metrics["expanded_query_tokens"] = result.expanded_query_tokens
+        metrics["expanded_query_token_count"] = len(result.expanded_query_tokens)
         raw_reduction = metrics["estimated_reduction_percent"]
         reduction_percent = raw_reduction if isinstance(raw_reduction, (int, float)) else 0.0
         if effective_cfg.mode != "two_pass" and reduction_percent < cfg.min_estimated_reduction_percent:
-            selected = schemas
+            selected = policy_schemas
             metrics = reduction_metrics(effective_cfg.mode, schemas, selected, result.always_included)
             metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)
             metrics["selected_scores"] = {}
             metrics["top_candidates"] = []
             metrics["pre_skip_selected"] = result.selected_names
-            metrics["expanded_query_tokens"] = result.expanded_query_tokens
+            metrics["expanded_query_token_count"] = len(result.expanded_query_tokens)
             metrics["skipped"] = True
             metrics["skip_reason"] = "below_min_estimated_reduction_percent"
             metrics["min_estimated_reduction_percent"] = cfg.min_estimated_reduction_percent

@@ -8,10 +8,10 @@ from typing import Iterable
 
 from .bm25 import BM25
 from .config import ToolSlimmerConfig
-from .corpus import build_corpus, tool_name, tool_toolset
+from .corpus import build_corpus, tool_name
 from .native import NATIVE_TOOL_SEARCH_BRIDGE_NAMES
+from .policy import eligible_schemas
 from .tokenizer import tokenize
-from .toolsets import is_mcp_schema
 from .types import Schema, SelectionResult, ToolDocument
 from .two_pass import HYDRATE_TOOL_NAME
 
@@ -78,24 +78,7 @@ class ToolSelector:
             raise
 
     def _eligible(self, schemas: Iterable[Schema]) -> list[Schema]:
-        disabled = set(self.config.disabled_tools)
-        disabled_toolsets = set(self.config.disabled_toolsets)
-        out = []
-        for schema in schemas:
-            if not isinstance(schema, dict):
-                LOG.warning("skipping non-dict tool schema: %r", schema)
-                continue
-            name = tool_name(schema)
-            toolset = tool_toolset(schema)
-            if name in disabled or (toolset and toolset in disabled_toolsets):
-                continue
-            is_mcp = is_mcp_schema(schema)
-            if is_mcp and not self.config.include_mcp_tools:
-                continue
-            if not is_mcp and not self.config.include_native_tools:
-                continue
-            out.append(schema)
-        return out
+        return eligible_schemas(schemas, self.config)
 
     def _select_keyword(self, user_message: str, schemas: list[Schema]) -> SelectionResult:
         eligible = self._eligible(schemas)

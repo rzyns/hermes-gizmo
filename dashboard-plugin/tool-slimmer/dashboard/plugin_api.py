@@ -119,19 +119,16 @@ def _hermes_tool_definitions() -> list[dict[str, Any]]:
 
 
 def _live_hermes_schemas() -> tuple[list[dict[str, Any]], str]:
-    candidates: list[tuple[list[dict[str, Any]], str]] = []
     hermes_error: HTTPException | None = None
     try:
         schemas = _hermes_tool_definitions()
     except HTTPException as exc:
         hermes_error = exc
     else:
-        candidates.append((schemas, "hermes"))
+        return schemas, "hermes"
     last_live = _last_live_request_schemas()
     if last_live:
-        candidates.append((last_live, "live_request"))
-    if candidates:
-        return max(candidates, key=lambda item: len(item[0]))
+        return last_live, "live_request"
     if hermes_error is not None:
         raise hermes_error
     raise HTTPException(

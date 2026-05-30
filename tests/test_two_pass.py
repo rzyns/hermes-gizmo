@@ -35,6 +35,15 @@ def test_compact_catalog_is_deterministic_and_excludes_safety_tools():
     assert "tool_slimmer_request_full_tools" not in first
 
 
+def test_compact_catalog_respects_disabled_policy():
+    cfg = ToolSlimmerConfig.from_mapping({"mode": "two_pass", "disabled_tools": ["web_search"]})
+
+    rendered = render_compact_catalog(compact_catalog(SCHEMAS, cfg))
+
+    assert "web_search" not in rendered
+    assert "read_file" in rendered
+
+
 def test_hydrate_tool_schema_contains_catalog_and_enum():
     cfg = ToolSlimmerConfig.from_mapping({"mode": "two_pass"})
     tools = compact_catalog(SCHEMAS, cfg)
@@ -114,6 +123,27 @@ def test_two_pass_hydrates_requested_tools_and_caches_by_session(monkeypatch, tm
         config=cfg,
     )
     assert "web_search" in [schema["name"] for schema in selected_again]
+
+
+def test_two_pass_hydration_respects_disabled_policy(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    _HYDRATED_BY_SESSION.clear()
+    cfg = ToolSlimmerConfig.from_mapping({"mode": "two_pass", "always_include": ["memory"], "disabled_tools": ["web_search"]})
+    marker = json.dumps({HYDRATE_REQUEST_MARKER: True, "tools": ["web_search", "read_file"]})
+
+    selected = select_tool_schemas_callback(
+        "continue",
+        [{"role": "tool", "content": marker}],
+        SCHEMAS,
+        "model",
+        "tui",
+        session_id="session-disabled",
+        config=cfg,
+    )
+
+    names = [schema["name"] for schema in selected]
+    assert "read_file" in names
+    assert "web_search" not in names
 
 
 def test_two_pass_missing_hydrator_falls_back_to_keyword(monkeypatch, tmp_path):

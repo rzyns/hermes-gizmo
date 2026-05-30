@@ -28,9 +28,9 @@ Paste this prompt into Hermes Agent:
 Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
 
 Use the Hermes virtualenv launcher, not a system Python launcher:
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 
-If the repo is not downloaded yet, download it to /tmp/hermes-tool-slimmer first.
+If the repo is not downloaded yet, clone it into $HOME/hermes-tool-slimmer first. Do not use a predictable shared /tmp checkout for installer scripts.
 If the environment blocks direct script execution, request approval for that exact bash command.
 
 After install:

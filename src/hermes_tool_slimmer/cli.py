@@ -126,7 +126,7 @@ def privacy_inventory() -> dict[str, object]:
             "skip_reason",
             "selected_scores",
             "top_candidates",
-            "expanded_query_tokens",
+            "expanded_query_token_count",
             "two_pass_catalog_tools",
             "two_pass_catalog_approx_tokens",
             "two_pass_hydrated_tools",

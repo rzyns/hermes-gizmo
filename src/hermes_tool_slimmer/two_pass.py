@@ -8,6 +8,7 @@ from typing import Any, Iterable
 from .config import ToolSlimmerConfig
 from .corpus import tool_description, tool_name, tool_toolset
 from .metrics import approx_tokens, schema_bytes
+from .policy import eligible_schemas
 from .tokenizer import tokenize
 from .types import Schema
 
@@ -25,17 +26,13 @@ class CompactTool:
 
 
 def compact_catalog(schemas: Iterable[Schema], cfg: ToolSlimmerConfig) -> list[CompactTool]:
-    disabled = set(cfg.disabled_tools)
-    disabled_toolsets = set(cfg.disabled_toolsets)
     tools: list[CompactTool] = []
     seen: set[str] = set()
-    for schema in schemas:
+    for schema in eligible_schemas(schemas, cfg):
         name = tool_name(schema)
-        if not name or name in seen or name in disabled:
+        if not name or name in seen:
             continue
         toolset = tool_toolset(schema)
-        if toolset and toolset in disabled_toolsets:
-            continue
         if name in {HYDRATE_TOOL_NAME, *SAFETY_TOOL_NAMES}:
             continue
         desc = _one_line(tool_description(schema) or name)
