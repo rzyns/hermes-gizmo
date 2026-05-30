@@ -83,6 +83,19 @@ fail() {
   exit 1
 }
 
+compatibility_notice() {
+  cat <<'NOTICE'
+
+==> Compatibility note
+Recent Hermes Agent builds include native Tool Search for very large MCP/plugin
+tool catalogs. That native Hermes feature is probably the better default when it
+activates. Tool Slimmer detects Hermes' native bridge and will not double-slim
+those requests. The update repair below preserves Tool Slimmer's dashboard,
+counters, diagnostics, profiles, and deterministic slimming for requests where
+native Tool Search is inactive.
+NOTICE
+}
+
 [[ -n "$HERMES_BIN" ]] || fail "Hermes executable not found. Install Hermes or pass --hermes-bin PATH."
 [[ -x "$HERMES_BIN" ]] || fail "Hermes executable is not executable: $HERMES_BIN"
 
@@ -92,6 +105,7 @@ export HERMES_HOME
 step "Updating Hermes non-interactively"
 echo "Hermes: $HERMES_BIN"
 echo "Hermes home: $HERMES_HOME"
+compatibility_notice
 "$HERMES_BIN" update --yes "${UPDATE_BACKUP_ARGS[@]}"
 
 step "Repairing Tool Slimmer after Hermes update"

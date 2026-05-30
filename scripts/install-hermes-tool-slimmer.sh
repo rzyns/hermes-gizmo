@@ -73,6 +73,19 @@ fail() {
   exit 1
 }
 
+compatibility_notice() {
+  cat <<'NOTICE'
+
+==> Compatibility note
+Recent Hermes Agent builds include native Tool Search for very large MCP/plugin
+tool catalogs. That native Hermes feature is probably the better default when it
+activates. Tool Slimmer detects Hermes' native bridge and will not double-slim
+those requests. Tool Slimmer still provides deterministic slimming when native
+Tool Search is inactive, plus dashboard visibility, counters, diagnostics,
+profiles, and eval tools.
+NOTICE
+}
+
 [[ -n "$HERMES_BIN" ]] || fail "Hermes executable not found. Install Hermes or pass --hermes-bin PATH."
 [[ -x "$HERMES_BIN" ]] || fail "Hermes executable is not executable: $HERMES_BIN"
 
@@ -88,6 +101,8 @@ step "Using Hermes"
 echo "Hermes: $HERMES_BIN"
 echo "Python: $HERMES_PYTHON"
 echo "Hermes home: $HERMES_HOME"
+
+compatibility_notice
 
 step "Installing Python package into Hermes environment"
 if command -v uv >/dev/null 2>&1; then
