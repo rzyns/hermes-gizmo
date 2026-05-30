@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import platform
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,7 @@ from .anthropic_tool_search import supports_anthropic_tool_search
 from .config import ToolSlimmerConfig, config_path, load_config
 from .corpus import tool_name
 from .index_store import IndexStore
-from .metrics import reduction_metrics
+from .metrics import read_decisions, reduction_metrics, summarize_decisions
 from .selector import ToolSelector
 
 
@@ -137,6 +138,116 @@ def privacy_inventory() -> dict[str, object]:
             "Score details include tool names and numeric ranking components.",
         ],
     }
+
+
+def diagnostic_report(limit: int = 200) -> dict[str, object]:
+    """Return a sanitized support report safe to paste into a GitHub issue."""
+    store = IndexStore()
+    cfg_error: str | None = None
+    try:
+        cfg = load_config()
+    except Exception as exc:
+        cfg = ToolSlimmerConfig(enabled=False)
+        cfg_error = str(exc)
+    index = store.load() or {}
+    events = read_decisions(limit=limit)
+    summary = summarize_decisions(limit=limit, require_session=True)
+    summary.pop("recent", None)
+    last_event = events[-1] if events else {}
+    last_context = last_event.get("context") if isinstance(last_event, dict) else {}
+    last_metrics = last_event.get("metrics") if isinstance(last_event, dict) else {}
+    if not isinstance(last_context, dict):
+        last_context = {}
+    if not isinstance(last_metrics, dict):
+        last_metrics = {}
+    return {
+        "ok": cfg_error is None,
+        "report_version": 1,
+        "privacy": {
+            "raw_prompts_included": False,
+            "env_values_included": False,
+            "paths_include_home": True,
+        },
+        "runtime": {
+            "python": sys.version.split()[0],
+            "platform": platform.platform(),
+        },
+        "package": _package_info(),
+        "config": {
+            "error": cfg_error,
+            "enabled": cfg.enabled,
+            "mode": cfg.mode,
+            "top_k": cfg.top_k,
+            "min_total_tools": cfg.min_total_tools,
+            "dry_run": cfg.dry_run,
+            "fail_open": cfg.fail_open,
+            "always_include": cfg.always_include,
+            "always_exclude": cfg.disabled_tools,
+            "profiles": sorted(cfg.profiles),
+            "two_pass": cfg.two_pass.__dict__,
+        },
+        "doctor": run_doctor(),
+        "index": {
+            "path": str(store.path),
+            "exists": bool(index),
+            "total_tools": index.get("total_tools", 0),
+            "checksum": str(index.get("checksum") or "")[:12],
+            "live_snapshots": [_sanitize_snapshot(snapshot) for snapshot in store.live_schema_summaries()],
+        },
+        "decisions": {
+            "summary": summary,
+            "last_event": {
+                "context": {
+                    "provider": last_context.get("provider"),
+                    "model": last_context.get("model"),
+                    "platform": last_context.get("platform"),
+                    "schema_count": last_context.get("schema_count"),
+                    "dry_run": last_context.get("dry_run"),
+                    "has_session_id": bool(last_context.get("session_id")),
+                },
+                "metrics": {
+                    "mode": last_metrics.get("mode"),
+                    "total_tools": last_metrics.get("total_tools"),
+                    "selected_tools": last_metrics.get("selected_tools"),
+                    "estimated_reduction_percent": last_metrics.get("estimated_reduction_percent"),
+                    "skipped": last_metrics.get("skipped"),
+                    "skip_reason": last_metrics.get("skip_reason"),
+                    "selection_ms": last_metrics.get("selection_ms"),
+                    "selected": last_metrics.get("selected"),
+                    "two_pass_phase": last_metrics.get("two_pass_phase"),
+                    "two_pass_fallback": last_metrics.get("two_pass_fallback"),
+                },
+            },
+        },
+    }
+
+
+def _sanitize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "label": snapshot.get("label"),
+        "platform": snapshot.get("platform"),
+        "total_tools": snapshot.get("total_tools"),
+        "schema_count": snapshot.get("schema_count"),
+        "has_session_id": bool(snapshot.get("session_id")),
+        "model": snapshot.get("model"),
+        "provider": snapshot.get("provider"),
+        "checksum": str(snapshot.get("checksum") or "")[:12],
+        "updated_at": snapshot.get("updated_at"),
+        "path": snapshot.get("path"),
+    }
+
+
+def _package_info() -> dict[str, object]:
+    try:
+        import importlib.metadata as md
+    except Exception:
+        return {"version": "unknown", "module": None}
+    spec = importlib.util.find_spec("hermes_tool_slimmer")
+    try:
+        version = md.version("hermes-tool-slimmer")
+    except md.PackageNotFoundError:
+        version = "unknown"
+    return {"version": version, "module": spec.origin if spec else None}
 
 
 def eval_prompts(cfg: ToolSlimmerConfig, schemas: list[dict[str, Any]], prompts: list[dict[str, Any]]) -> dict[str, object]:
@@ -285,12 +396,12 @@ def run_doctor(
             "pass" if selector_supported else "warn",
             "Hermes core advertises select_tool_schemas"
             if selector_supported
-            else "Hermes core does not advertise select_tool_schemas; apply docs/hermes-core-selector-hook.patch",
+            else "Hermes core does not advertise select_tool_schemas; rerun scripts/install-hermes-tool-slimmer.sh to apply the local compatibility patch",
         )
     except Exception:
         checks["core_selector_hook"] = _check(
             "warn",
-            "Hermes core not importable here; apply/check docs/hermes-core-selector-hook.patch",
+            "Hermes core not importable here; rerun the installer with the Hermes venv launcher",
         )
 
     if cfg.mode == "anthropic_tool_search":
@@ -349,6 +460,8 @@ def setup_argparse(parser: argparse.ArgumentParser) -> None:
     advisor.add_argument("--rollback", help="Restore a config backup created by advisor --apply")
     advisor.add_argument("--limit", type=int, default=1000)
     sub.add_parser("privacy")
+    diagnostics = sub.add_parser("diagnostics")
+    diagnostics.add_argument("--limit", type=int, default=200)
     sub.add_parser("recommend-config")
 
 
@@ -370,6 +483,9 @@ def handle_cli(args: argparse.Namespace) -> int:
     if args.command == "privacy":
         print(json.dumps(privacy_inventory(), indent=2, sort_keys=True))
         return 0
+    if args.command == "diagnostics":
+        print(json.dumps(diagnostic_report(limit=getattr(args, "limit", 200)), indent=2, sort_keys=True))
+        return 0
 
     cfg = load_config(getattr(args, "config", None))
     if args.command == "status":
@@ -389,7 +505,7 @@ def handle_cli(args: argparse.Namespace) -> int:
                     "total_tools_indexed": index.get("total_tools", 0),
                     "source_context": latest_live,
                     "live_snapshots": live_snapshots,
-                    "core_integration": "active when Hermes exposes select_tool_schemas hook or applies docs/hermes-core-selector-hook.patch",
+                    "core_integration": "active when Hermes exposes select_tool_schemas hook or the installer applies the local compatibility patch",
                 },
                 indent=2,
             )

@@ -12,7 +12,7 @@ import hermes_tool_slimmer
 from hermes_tool_slimmer.advisor import apply_recommended_config, apply_tool_preference, analyze_config, rollback_config
 from hermes_tool_slimmer.commands import handle_slash_command
 from hermes_tool_slimmer.config import ToolSlimmerConfig
-from hermes_tool_slimmer.cli import _load_prompts, _load_schemas, _tool_names
+from hermes_tool_slimmer.cli import _load_prompts, _load_schemas, _tool_names, diagnostic_report
 from hermes_tool_slimmer.integration import FALLBACK_INSTRUCTION, maybe_register_selector_hook, pre_llm_diagnostic_hook, select_tool_schemas_callback
 from hermes_tool_slimmer.metrics import read_decisions, summarize_decisions
 from hermes_tool_slimmer.index_store import IndexStore
@@ -914,6 +914,7 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
         events = client.get("/events?limit=1")
         advisor = client.get("/advisor")
         privacy = client.get("/privacy")
+        diagnostics = client.get("/diagnostics")
         eval_report = client.get("/eval-report")
         index_before = client.get("/index")
         rebuilt = client.post(
@@ -939,6 +940,8 @@ def test_dashboard_plugin_api_reports_status_and_summary(monkeypatch, tmp_path):
     assert isinstance(advisor.json()["advisor"]["setup_checklist"], list)
     assert privacy.status_code == 200
     assert privacy.json()["privacy"]["raw_prompts_logged"] is False
+    assert diagnostics.status_code == 200
+    assert diagnostics.json()["diagnostics"]["privacy"]["raw_prompts_included"] is False
     assert eval_report.status_code == 200
     assert "# Tool Slimmer Eval Report" in eval_report.json()["markdown"]
     assert index_before.status_code == 200
@@ -1147,3 +1150,31 @@ def test_dashboard_eval_report_tolerates_malformed_example_yaml(monkeypatch, tmp
 
     assert eval_report.status_code == 200
     assert eval_report.json()["report"]["summary"]["prompts"] == 0
+
+
+def test_diagnostic_report_is_sanitized(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.delenv("HERMES_CONFIG", raising=False)
+    select_tool_schemas_callback(
+        "read a sensitive prompt that should not be logged",
+        [],
+        [{"name": "read_file", "description": "Read files"}],
+        "model",
+        "dashboard",
+        session_id="secret-session-id",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], min_total_tools=0),
+    )
+
+    report = diagnostic_report()
+
+    assert report["privacy"]["raw_prompts_included"] is False
+    assert "sensitive prompt" not in json.dumps(report)
+    assert "secret-session-id" not in json.dumps(report)
+    assert report["decisions"]["last_event"]["context"]["has_session_id"] is True
+
+
+def test_installer_copies_source_bundle_for_dashboard_import_fallback():
+    installer = (Path(__file__).resolve().parents[1] / "scripts" / "install-hermes-tool-slimmer.sh").read_text()
+
+    assert 'cp -R "$ROOT_DIR/src/hermes_tool_slimmer" "$TMP_DIR/src/"' in installer
+    assert 'cp "$ROOT_DIR/scripts/troubleshoot-hermes-tool-slimmer.sh" "$TMP_DIR/scripts/"' in installer

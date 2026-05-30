@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.1 - 2026-05-30
+
+Install and support diagnostics repair release.
+
+### Added
+
+- `hermes tool-slimmer diagnostics` emits a sanitized GitHub-issue support report without raw prompts, environment secrets, or session IDs.
+- Dashboard API exposes the same sanitized diagnostics at `/diagnostics`.
+
+### Fixed
+
+- Installer-based dashboard/user-plugin installs now include a bundled `src/hermes_tool_slimmer` fallback so the dashboard can import the matching plugin package even when Hermes dashboard runs under a different Python launcher.
+- Normal install docs and doctor messages now point users back to the installer compatibility patcher instead of asking them to manually apply the upstream Hermes core patch artifact.
+
 ## 0.6.0 - 2026-05-29
 
 Experimental two-pass schema hydration release.

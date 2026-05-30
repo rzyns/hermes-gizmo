@@ -135,10 +135,12 @@ Experimental `mode: two_pass` is for large catalogs or TPM-capped providers. The
 hermes tool-slimmer doctor
 hermes tool-slimmer status
 hermes tool-slimmer privacy
+hermes tool-slimmer diagnostics
 scripts/troubleshoot-hermes-tool-slimmer.sh
 ```
 
 `doctor` reports whether Hermes is importable, the plugin is enabled, the index path is writable, and whether the core selector hook is available.
+`diagnostics` prints a sanitized support report for GitHub issues. It does not include raw prompts, environment secret values, or session IDs.
 
 Dashboard savings are estimated schema-token savings, not invoice-grade billing numbers. They use serialized tool-schema JSON bytes divided by 4 before and after selection.
 
@@ -156,6 +158,6 @@ A schema file can be a YAML list or an object containing `tools:` / `schemas:`.
 
 ## 5. Enable active schema slimming
 
-Set `dry_run: false` only after `doctor` reports a Hermes core selector hook or after applying the patch in `docs/hermes-core-selector-hook.patch` to Hermes core.
+Set `dry_run: false` only after `doctor` reports a Hermes core selector hook. If it warns that `select_tool_schemas` is missing, rerun `scripts/install-hermes-tool-slimmer.sh`; the installer applies the local compatibility patch. Do not paste or manually apply `docs/hermes-core-selector-hook.patch` unless you are developing a Hermes core PR.
 
 The installer patches the local Hermes core automatically when that hook is missing. Use `scripts/install-hermes-tool-slimmer.sh --no-core-patch` only when you want to manage Hermes core changes yourself.

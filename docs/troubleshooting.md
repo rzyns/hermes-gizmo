@@ -1,5 +1,15 @@
 # Troubleshooting
 
+## Create a support report
+
+When opening a GitHub issue, include this sanitized report:
+
+```bash
+hermes tool-slimmer diagnostics
+```
+
+It includes config shape, doctor checks, index counts, live snapshot summaries, and recent decision counters. It does not include raw prompts, environment secret values, or session IDs.
+
 ## Installer script is blocked
 
 If Hermes or an agent says the Tool Slimmer repo downloaded correctly but the installer script was blocked, this is usually an execution approval issue. Run the same command from a normal terminal on the Hermes machine:
@@ -41,6 +51,8 @@ Hermes updates can replace the files that Tool Slimmer patches for active schema
 ```bash
 bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
 ```
+
+Do not manually apply `docs/hermes-core-selector-hook.patch` for a normal install. That file is an upstream patch artifact for Hermes core development; it must be applied from a matching Hermes checkout and may not match released source layouts. The installer contains the compatibility patcher used for released Hermes versions.
 
 For future Hermes updates, use the update-and-repair helper from the Tool Slimmer repo:
 

@@ -108,6 +108,13 @@ if [[ "$(readlink -f "$ROOT_DIR")" == "$(readlink -f "$TARGET_DIR" 2>/dev/null |
 else
   rm -rf "$TMP_DIR"
   cp -R "$PLUGIN_SRC" "$TMP_DIR"
+  mkdir -p "$TMP_DIR/src"
+  cp -R "$ROOT_DIR/src/hermes_tool_slimmer" "$TMP_DIR/src/"
+  mkdir -p "$TMP_DIR/scripts"
+  cp "$ROOT_DIR/scripts/install-hermes-tool-slimmer.sh" "$TMP_DIR/scripts/"
+  cp "$ROOT_DIR/scripts/troubleshoot-hermes-tool-slimmer.sh" "$TMP_DIR/scripts/"
+  cp "$ROOT_DIR/scripts/self-heal-tool-slimmer.sh" "$TMP_DIR/scripts/"
+  cp "$ROOT_DIR/scripts/update-hermes-and-repair-tool-slimmer.sh" "$TMP_DIR/scripts/"
   rm -rf "$TARGET_DIR"
   mv "$TMP_DIR" "$TARGET_DIR"
 fi
