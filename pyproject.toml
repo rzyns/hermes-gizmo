@@ -87,8 +87,13 @@ explicit_package_bases = true
 mypy_path = "src"
 
 [tool.hatch.build.targets.wheel]
+packages = ["src/hermes_tool_slimmer"]
 include = [
   "/src/hermes_tool_slimmer",
   "/dashboard",
   "/dashboard-plugin",
 ]
+
+[tool.hatch.build.targets.wheel.force-include]
+"dashboard" = "dashboard"
+"dashboard-plugin" = "dashboard-plugin"
