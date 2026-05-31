@@ -241,6 +241,7 @@ hermes tool-slimmer advisor
 hermes tool-slimmer advisor --apply
 hermes tool-slimmer advisor --rollback ~/.hermes/tool-slimmer/backups/config-YYYYmmdd-HHMMSS.yaml
 hermes tool-slimmer privacy
+hermes tool-slimmer diagnostics
 hermes tool-slimmer recommend-config
 ```
 

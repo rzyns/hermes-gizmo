@@ -131,13 +131,19 @@ Experimental `mode: two_pass` is for large catalogs or TPM-capped providers. The
 ```bash
 hermes tool-slimmer doctor
 hermes tool-slimmer status
+hermes tool-slimmer privacy
+hermes tool-slimmer diagnostics
+scripts/troubleshoot-hermes-tool-slimmer.sh
 ```
 
 `doctor` reports whether:
+- Hermes is importable
 - config is valid
 - the plugin is enabled in the active profile
-- index directory is writable
+- the index directory is writable
 - the core selector hook is available
+
+`diagnostics` prints a sanitized support report for GitHub issues. It does not include raw prompts, environment secret values, or session IDs.
 
 If `core_selector_hook` shows `warn`, your Hermes core does not advertise `select_tool_schemas`. The plugin will run diagnostics-only (dashboard/CLI work, no active slimming).
 
@@ -149,7 +155,7 @@ hermes tool-slimmer select "search this repo for MCP registration code" --schema
 
 ## 5. Enable active schema slimming
 
-Set `dry_run: false` only after `doctor` reports all checks passing and you have observed satisfactory selections during dry-run.
+Set `dry_run: false` only after `doctor` reports a Hermes core selector hook and you have observed satisfactory selections during dry-run. If it warns that `select_tool_schemas` is missing, rerun `scripts/install-hermes-tool-slimmer.sh`; the installer applies the local compatibility patch. Do not paste or manually apply `docs/hermes-core-selector-hook.patch` unless you are developing a Hermes core PR.
 
 ## 6. Run the benchmark report
 
