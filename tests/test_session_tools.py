@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 
 
 from hermes_tool_slimmer.config import ToolSlimmerConfig
+from hermes_tool_slimmer.index_store import IndexStore
 from hermes_tool_slimmer.integration import (
     post_tool_call_session_bridge_hook,
     transform_loaded_tools_session_bridge_hook,
@@ -161,6 +162,70 @@ class TestToolSearch:
         assert result["ok"] is True
         assert result["session_loaded_count"] == 0
         # (progressive_enabled defaults to False so state is not used)
+
+    def test_search_prefers_full_platform_snapshot_over_slimmed_live_tools(self, monkeypatch, tmp_path) -> None:
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("HERMES_PLATFORM", "discord")
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("tool_slimmer:\n  progressive_enabled: true\n")
+        monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+        slimmed_live = [
+            {"name": "send_message", "toolset": "messaging", "description": "Send a message"},
+            {"name": "session_search", "toolset": "session_search", "description": "Search sessions"},
+        ]
+        full_discord_snapshot = [
+            *slimmed_live,
+            {
+                "name": "discord_read_message",
+                "toolset": "discord",
+                "description": "Read Discord messages from a channel with surrounding context",
+            },
+        ]
+        store = IndexStore()
+        store.save_live_schemas(
+            full_discord_snapshot,
+            {"session_id": "session-1", "platform": "discord"},
+        )
+        monkeypatch.setattr("hermes_tool_slimmer.tools._live_hermes_schemas", lambda: slimmed_live)
+
+        result = json.loads(tool_slimmer_tool_search({"query": "discord read messages channel"}))
+        names = [item["name"] for item in result["results"]]
+
+        assert result["ok"] is True
+        assert result["schema_source"] == "live_request"
+        assert names[0] == "discord_read_message"
+
+    def test_search_uses_full_latest_snapshot_when_platform_snapshot_was_overwritten(self, monkeypatch, tmp_path) -> None:
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("HERMES_PLATFORM", "discord")
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("tool_slimmer:\n  progressive_enabled: true\n")
+        monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+        slimmed_live = [
+            {"name": "send_message", "toolset": "messaging", "description": "Send a message"},
+            {"name": "session_search", "toolset": "session_search", "description": "Search sessions"},
+        ]
+        full_snapshot = [
+            *slimmed_live,
+            {
+                "name": "discord_read_message",
+                "toolset": "discord",
+                "description": "Read Discord messages from a channel with surrounding context",
+            },
+        ]
+        store = IndexStore()
+        store.save_live_schemas(full_snapshot, {"session_id": "full-session", "platform": "latest"})
+        store.save_live_schemas(slimmed_live, {"session_id": "slim-session", "platform": "discord"})
+        monkeypatch.setattr("hermes_tool_slimmer.tools._live_hermes_schemas", lambda: slimmed_live)
+
+        result = json.loads(tool_slimmer_tool_search({"query": "discord read messages channel"}))
+        names = [item["name"] for item in result["results"]]
+
+        assert result["ok"] is True
+        assert result["schema_source"] == "live_request"
+        assert names[0] == "discord_read_message"
 
     def test_session_loaded_count_with_enabled(self) -> None:
         with TemporaryDirectory() as td:

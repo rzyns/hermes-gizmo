@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from .config import ToolSlimmerConfig, load_config
@@ -47,16 +48,49 @@ def _resolve_schemas(args: dict[str, Any], kwargs: dict[str, Any]) -> tuple[list
     provided = args.get("schemas") if isinstance(args, dict) and "schemas" in args else kwargs.get("schemas")
     if isinstance(provided, list):
         return provided, "provided"
+
+    store = IndexStore()
+    snapshot_schemas: list[dict[str, Any]] = []
+    platform = None
+    if isinstance(args, dict):
+        platform = args.get("platform")
+    platform = (
+        platform
+        or kwargs.get("platform")
+        or os.environ.get("HERMES_PLATFORM")
+        or os.environ.get("HERMES_SESSION_SOURCE")
+    )
+    snapshot_candidates: list[list[dict[str, Any]]] = []
+    if platform:
+        snapshot = store.load_live_schema_snapshot(str(platform))
+        if snapshot:
+            schemas = snapshot.get("schemas")
+            if isinstance(schemas, list):
+                snapshot_candidates.append(schemas)
+    latest_snapshot = store.load_live_schema_snapshot("latest")
+    if latest_snapshot:
+        schemas = latest_snapshot.get("schemas")
+        if isinstance(schemas, list):
+            snapshot_candidates.append(schemas)
+    latest_schemas = store.load_live_schemas(min_total_tools=0, require_session=False)
+    if latest_schemas:
+        snapshot_candidates.append(latest_schemas)
+    if snapshot_candidates:
+        snapshot_schemas = max(snapshot_candidates, key=len)
+
     live = _live_hermes_schemas()
-    if live:
+    if live and (len(live) >= len(snapshot_schemas) or not platform):
         try:
-            IndexStore().ensure(live)
+            store.ensure(live)
         except Exception:
             pass
         return live, "live"
-    last_live = IndexStore().load_live_schemas()
-    if last_live:
-        return last_live, "live_request"
+    if snapshot_schemas:
+        try:
+            store.ensure(snapshot_schemas)
+        except Exception:
+            pass
+        return snapshot_schemas, "live_request"
     indexed = _indexed_schemas()
     if indexed:
         return indexed, "index"
