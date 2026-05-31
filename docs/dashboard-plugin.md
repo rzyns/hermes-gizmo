@@ -49,6 +49,27 @@ After install, verify:
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 ```
 
+## Updating
+
+If Tool Slimmer shows as `Source: git` on the Hermes dashboard **Plugins** page, use the dashboard **Git pull** / **Update** action, then restart the gateway so active schema slimming uses the updated code.
+
+If Tool Slimmer shows as `Source: user`, update the terminal checkout before reinstalling:
+
+```bash
+cd "$HOME"
+if [ -d "$HOME/hermes-tool-slimmer/.git" ]; then
+  cd "$HOME/hermes-tool-slimmer"
+  git pull --ff-only
+else
+  git clone https://github.com/alias8818/hermes-tool-slimmer.git "$HOME/hermes-tool-slimmer"
+  cd "$HOME/hermes-tool-slimmer"
+fi
+
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+```
+
+Do not rerun an old checkout from `/tmp/hermes-tool-slimmer`; the installer will reinstall whatever version is in that folder.
+
 If you only want a health report:
 
 ```bash

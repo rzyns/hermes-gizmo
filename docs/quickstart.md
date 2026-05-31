@@ -40,6 +40,28 @@ hermes tool-slimmer doctor
 
 All checks should pass. If the dashboard is running, the Tool Slimmer tab should appear after the dashboard service restarts.
 
+### Updating Tool Slimmer Later
+
+The installer installs the version in the local checkout you run it from. If an agent previously downloaded an old copy into `/tmp/hermes-tool-slimmer`, rerunning that old checkout will reinstall the old version.
+
+Use a durable checkout under your home directory and update it before reinstalling:
+
+```bash
+cd "$HOME"
+if [ -d "$HOME/hermes-tool-slimmer/.git" ]; then
+  cd "$HOME/hermes-tool-slimmer"
+  git pull --ff-only
+else
+  git clone https://github.com/alias8818/hermes-tool-slimmer.git "$HOME/hermes-tool-slimmer"
+  cd "$HOME/hermes-tool-slimmer"
+fi
+
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+$HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
+```
+
+If the Hermes dashboard **Plugins** page shows Tool Slimmer as `Source: git`, use the dashboard **Git pull** / **Update** action, then restart the gateway. If it shows `Source: user`, use the terminal update path above.
+
 ### Updating Hermes Later
 
 Use the bundled helper when Hermes releases a new version:
@@ -84,14 +106,18 @@ Give Hermes Agent this prompt:
 
 ```text
 Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
-After downloading the repo, run:
+Use $HOME/hermes-tool-slimmer as the checkout path.
+If $HOME/hermes-tool-slimmer already exists and is a git checkout, run git pull --ff-only there first.
+If it does not exist, clone https://github.com/alias8818/hermes-tool-slimmer.git there.
+Do not use an old /tmp/hermes-tool-slimmer checkout.
+Then run:
 HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 If the environment asks for approval to run that script, request approval for that exact command.
 Then verify with:
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 ```
 
-If Hermes Agent says it downloaded or unpacked the repo but installation is not complete, the next step is usually only the `bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"` command above.
+If Hermes Agent says it downloaded or unpacked the repo but installation is not complete, first confirm it used `$HOME/hermes-tool-slimmer` and updated that checkout, then run the `bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"` command above.
 
 ## 2. Add configuration
 

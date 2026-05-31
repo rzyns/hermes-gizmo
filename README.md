@@ -72,6 +72,23 @@ Verify it worked:
 hermes tool-slimmer doctor
 ```
 
+To update an existing terminal install, update the local checkout first, then rerun the installer:
+
+```bash
+cd "$HOME"
+if [ -d "$HOME/hermes-tool-slimmer/.git" ]; then
+  cd "$HOME/hermes-tool-slimmer"
+  git pull --ff-only
+else
+  git clone https://github.com/alias8818/hermes-tool-slimmer.git "$HOME/hermes-tool-slimmer"
+  cd "$HOME/hermes-tool-slimmer"
+fi
+
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+```
+
+The installer installs the version in the checkout you run it from. If you rerun an old checkout, for example an old `/tmp/hermes-tool-slimmer` folder created by an agent, it will reinstall that old version.
+
 When updating Hermes later, use the bundled update-and-repair helper:
 
 ```bash
@@ -108,7 +125,9 @@ If Hermes Agent is doing the install for you, give it this instruction:
 
 ```text
 Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
-After downloading the repo, run:
+Use $HOME/hermes-tool-slimmer as the checkout path. If it already exists and is a git checkout, run git pull --ff-only there first. If it does not exist, clone the repo there.
+Do not use an old /tmp/hermes-tool-slimmer checkout.
+Then run:
 HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 If the environment asks for approval to run that script, request approval for that exact command.
 Then verify with:

@@ -10,6 +10,33 @@ hermes tool-slimmer diagnostics
 
 It includes config shape, doctor checks, index counts, live snapshot summaries, and recent decision counters. It does not include raw prompts, environment secret values, or session IDs.
 
+## Reinstall keeps installing an old version
+
+The installer installs the version in the local checkout you run it from. If the output says something like:
+
+```text
+Built hermes-tool-slimmer @ file:///tmp/hermes-tool-slimmer
+~ hermes-tool-slimmer==0.4.7
+```
+
+then the installer worked, but `/tmp/hermes-tool-slimmer` is an old checkout. Update or replace the checkout before reinstalling:
+
+```bash
+cd "$HOME"
+if [ -d "$HOME/hermes-tool-slimmer/.git" ]; then
+  cd "$HOME/hermes-tool-slimmer"
+  git pull --ff-only
+else
+  git clone https://github.com/alias8818/hermes-tool-slimmer.git "$HOME/hermes-tool-slimmer"
+  cd "$HOME/hermes-tool-slimmer"
+fi
+
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+$HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
+```
+
+If Tool Slimmer was installed from the Hermes dashboard and shows `Source: git`, use the dashboard **Git pull** / **Update** action instead. If it shows `Source: user`, use the terminal path above.
+
 ## Installer script is blocked
 
 If Hermes or an agent says the Tool Slimmer repo downloaded correctly but the installer script was blocked, this is usually an execution approval issue. Run the same command from a normal terminal on the Hermes machine:
