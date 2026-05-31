@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 import hermes_tool_slimmer
-from hermes_tool_slimmer.advisor import apply_recommended_config, apply_tool_preference, analyze_config, rollback_config
+from hermes_tool_slimmer.advisor import apply_recommended_config, apply_tool_preference, analyze_config, backup_config, rollback_config
 from hermes_tool_slimmer.commands import handle_slash_command
 from hermes_tool_slimmer.config import ToolSlimmerConfig
 from hermes_tool_slimmer.cli import _load_prompts, _load_schemas, _tool_names, diagnostic_report
@@ -282,6 +282,20 @@ def test_advisor_cronjob_warning_respects_telegram_profile_exclude():
     report = analyze_config(cfg, summary, indexed_tools=53, available_tools={"cronjob"})
 
     assert "cronjob_profile_review" not in {item["id"] for item in report["recommendations"]}
+
+
+def test_backup_config_uses_unique_paths_for_rapid_successive_backups(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("tool_slimmer:\n  top_k: 8\n")
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+
+    first = backup_config(config_path)
+    config_path.write_text("tool_slimmer:\n  top_k: 6\n")
+    second = backup_config(config_path)
+
+    assert first != second
+    assert yaml.safe_load(first.read_text())["tool_slimmer"]["top_k"] == 8
+    assert yaml.safe_load(second.read_text())["tool_slimmer"]["top_k"] == 6
 
 
 def test_cli_status_index_select_recommend_and_main(tmp_path, capsys, monkeypatch):
@@ -984,19 +998,21 @@ def test_dashboard_advisor_apply_and_rollback(monkeypatch, tmp_path):
             json={"recommended_config": {"enabled": True, "mode": "keyword", "top_k": 6, "always_include": ["memory"]}},
         )
         backup_path = applied.json()["backup_path"]
+        applied_config = yaml.safe_load(config_path.read_text())
         preference = client.post(
             "/advisor/tool-preference",
             json={"tool": "cronjob", "action": "always_exclude", "profile": "telegram"},
         )
         rolled_back = client.post("/advisor/rollback", json={"backup_path": backup_path})
+        rolled_back_config = yaml.safe_load(config_path.read_text())
 
     assert applied.status_code == 200
-    assert yaml.safe_load(config_path.read_text())["tool_slimmer"]["top_k"] == 6
-    assert "tool-slimmer" in yaml.safe_load(config_path.read_text())["plugins"]["enabled"]
+    assert applied_config["tool_slimmer"]["top_k"] == 6
+    assert "tool-slimmer" in applied_config["plugins"]["enabled"]
     assert preference.status_code == 200
     assert preference.json()["profile"] == "telegram"
     assert rolled_back.status_code == 200
-    assert yaml.safe_load(config_path.read_text())["tool_slimmer"]["top_k"] == 8
+    assert rolled_back_config["tool_slimmer"]["top_k"] == 8
 
 
 def test_dashboard_status_handles_bad_config(monkeypatch, tmp_path):

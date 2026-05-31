@@ -300,7 +300,7 @@ def backup_dir() -> Path:
 def backup_config(path: str | Path | None = None) -> Path:
     target = Path(path).expanduser() if path else config_path()
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    backup = backup_dir() / f"config-{stamp}.yaml"
+    backup = backup_dir() / f"config-{stamp}-{time.time_ns()}.yaml"
     if target.is_file():
         shutil.copy2(target, backup)
     else:
