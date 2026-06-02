@@ -1,6 +1,8 @@
 import json
 import importlib.util
+import os
 import shutil
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -107,7 +109,7 @@ def test_slash_command_status_dry_run_unknown_and_exception(monkeypatch, tmp_pat
     assert failed == {"error": "boom", "ok": False}
 
 
-def test_tool_slimmer_select_honors_mode_override(monkeypatch, tmp_path):
+def test_tool_slimmer_select_rejects_eager_mode_override(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     result = json.loads(
         tool_slimmer_select(
@@ -122,9 +124,8 @@ def test_tool_slimmer_select_honors_mode_override(monkeypatch, tmp_path):
         )
     )
 
-    assert result["ok"] is True
-    assert result["mode"] == "eager"
-    assert result["selected"] == ["read_file", "search_files"]
+    assert result["ok"] is False
+    assert result["error"] == "mode_not_allowed"
 
 
 def test_tool_slimmer_select_falls_back_to_index_when_schemas_missing(monkeypatch, tmp_path):
@@ -137,7 +138,7 @@ def test_tool_slimmer_select_falls_back_to_index_when_schemas_missing(monkeypatc
         ]
     )
 
-    result = json.loads(tool_slimmer_select({"query": "run a python script", "mode": "keyword"}))
+    result = json.loads(tool_slimmer_select({"query": "run a python script", "mode": "keyword", "allow_catalog_fallback": True}))
 
     assert result["ok"] is True
     assert result["schema_source"] == "index"
@@ -152,6 +153,19 @@ def test_tool_slimmer_select_reports_no_schemas_when_all_sources_empty(monkeypat
 
     assert result["ok"] is False
     assert result["error"] == "no_schemas_available"
+    assert result["schema_source"] == "none"
+
+
+def test_tool_slimmer_select_does_not_read_catalog_without_explicit_opt_in(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr("hermes_tool_slimmer.tools._live_hermes_schemas", lambda: [{"name": "live_tool", "description": "Live"}])
+    IndexStore().rebuild([{"name": "indexed_tool", "description": "Indexed"}])
+
+    result = json.loads(tool_slimmer_select({"query": "live indexed", "mode": "keyword"}))
+
+    assert result["ok"] is False
+    assert result["error"] == "no_schemas_available"
+    assert result["schema_source"] == "none"
 
 
 def test_tool_slimmer_status_handles_bad_config(monkeypatch, tmp_path):
@@ -192,7 +206,7 @@ def test_tool_slimmer_select_prefers_runtime_live_schemas_before_snapshot(monkey
     module.get_tool_definitions = lambda *args: [{"name": "runtime_tool", "description": "Runtime"}]
     monkeypatch.setitem(sys.modules, "model_tools", module)
 
-    result = json.loads(tool_slimmer_select({"query": "runtime", "mode": "keyword"}))
+    result = json.loads(tool_slimmer_select({"query": "runtime", "mode": "keyword", "allow_catalog_fallback": True}))
 
     assert result["ok"] is True
     assert result["schema_source"] == "live"
@@ -483,6 +497,47 @@ def test_full_tools_request_marker_bypasses_slimming(monkeypatch, tmp_path):
     assert event["metrics"]["skip_reason"] == "full_tools_requested"
 
 
+def test_full_tools_request_marker_preserves_disabled_policy(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "read_file", "description": "Read files"},
+        {"name": "blocked_tool", "description": "Disabled"},
+        {"name": "search_files", "description": "Search files"},
+    ]
+    conversation_history = [{"role": "tool", "content": json.dumps({FULL_TOOLS_REQUEST_MARKER: True})}]
+
+    out = select_tool_schemas_callback(
+        "search",
+        conversation_history,
+        schemas,
+        "model",
+        "tui",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], disabled_tools=["blocked_tool"], min_total_tools=0, log_decisions=False),
+    )
+
+    assert out == [schemas[0], schemas[2]]
+
+
+def test_full_tools_request_marker_ignores_plain_text_marker(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "read_file", "description": "Read files"},
+        {"name": "search_files", "description": "Search files"},
+    ]
+    conversation_history = [{"role": "assistant", "content": FULL_TOOLS_REQUEST_MARKER}]
+
+    out = select_tool_schemas_callback(
+        "search",
+        conversation_history,
+        schemas,
+        "model",
+        "tui",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], min_total_tools=0, log_decisions=False),
+    )
+
+    assert out == [schemas[1]]
+
+
 def test_full_tools_request_marker_persists_through_tool_call_chain(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     schemas = [
@@ -747,6 +802,36 @@ def test_anthropic_tool_search_guardrail_uses_hot_set_metrics(monkeypatch, tmp_p
     assert event["metrics"].get("skipped") is not True
 
 
+def test_anthropic_tool_search_preserves_disabled_policy(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "read_file", "description": "Read files" + (" x" * 200)},
+        {"name": "github_search_code", "toolset": "mcp:github", "description": "Search code" + (" y" * 200)},
+        {"name": "blocked_tool", "description": "Blocked" + (" z" * 200)},
+    ]
+
+    out = select_tool_schemas_callback(
+        "github search",
+        [],
+        schemas,
+        "claude-sonnet",
+        "cli",
+        provider="anthropic",
+        config=ToolSlimmerConfig(
+            mode="anthropic_tool_search",
+            top_k=1,
+            always_include=[],
+            disabled_tools=["blocked_tool"],
+            log_decisions=False,
+            min_total_tools=0,
+            min_estimated_reduction_percent=5,
+        ),
+    )
+
+    assert out is not None
+    assert [schema.get("name") for schema in out[1:]] == ["read_file", "github_search_code"]
+
+
 def test_selector_skips_small_catalogs_before_ranking(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     schemas = [
@@ -768,6 +853,28 @@ def test_selector_skips_small_catalogs_before_ranking(monkeypatch, tmp_path):
     assert event["metrics"]["skipped"] is True
     assert event["metrics"]["skip_reason"] == "below_min_total_tools"
     assert event["metrics"]["selection_ms"] >= 0
+
+
+def test_selector_small_catalog_guardrail_preserves_disabled_policy(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "read_file", "description": "Read files"},
+        {"name": "blocked_tool", "description": "Disabled"},
+    ]
+    out = select_tool_schemas_callback(
+        "read",
+        [],
+        schemas,
+        "model",
+        "cron",
+        session_id="cron-1",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], disabled_tools=["blocked_tool"], min_total_tools=20),
+    )
+
+    assert out == [schemas[0]]
+    event = read_decisions()[0]
+    assert event["metrics"]["skipped"] is True
+    assert event["metrics"]["skip_reason"] == "below_min_total_tools"
 
 
 def test_selector_skips_low_reduction_results(monkeypatch, tmp_path):
@@ -802,7 +909,36 @@ def test_selector_skips_low_reduction_results(monkeypatch, tmp_path):
     assert summarize_decisions(require_session=True)["totals"]["skipped_events"] == 1
 
 
-def test_pre_llm_bridge_and_selector_hooks_registered():
+def test_selector_low_reduction_guardrail_preserves_disabled_policy(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "read_file", "description": "Read files"},
+        {"name": "search_files", "description": "Search files"},
+        {"name": "blocked_tool", "description": "Disabled"},
+    ]
+    out = select_tool_schemas_callback(
+        "search",
+        [],
+        schemas,
+        "model",
+        "cron",
+        session_id="cron-1",
+        config=ToolSlimmerConfig(
+            top_k=1,
+            always_include=["read_file", "search_files"],
+            disabled_tools=["blocked_tool"],
+            min_total_tools=0,
+            min_estimated_reduction_percent=99,
+        ),
+    )
+
+    assert out == [schemas[0], schemas[1]]
+    event = read_decisions()[0]
+    assert event["metrics"]["skipped"] is True
+    assert event["metrics"]["skip_reason"] == "below_min_estimated_reduction_percent"
+
+
+def test_pre_llm_and_selector_hooks_registered():
     calls = []
 
     class Ctx:
@@ -871,6 +1007,67 @@ def test_pre_llm_hook_keeps_dry_run_diagnostic(monkeypatch, tmp_path):
     assert out is not None
     assert FALLBACK_INSTRUCTION in out["context"]
     assert "dry-run" in out["context"]
+
+
+def test_hook_config_load_fails_closed_on_malformed_yaml(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("tool_slimmer:\n  mode: [bad\n")
+    monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+    out = pre_llm_diagnostic_hook()
+
+    assert out is None
+
+
+def test_selector_skips_when_hermes_native_tool_search_is_active(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr("hermes_tool_slimmer.native.native_tool_search_available", lambda: True)
+    schemas = [
+        {"name": "terminal", "description": "Run commands"},
+        {"name": "tool_search", "description": "Search deferred tools"},
+        {"name": "tool_describe", "description": "Describe deferred tools"},
+        {"name": "tool_call", "description": "Call deferred tools"},
+        {"name": "web_search", "description": "Search the web"},
+    ]
+
+    selected = select_tool_schemas_callback(
+        "search the web",
+        [],
+        schemas,
+        "model",
+        "tui",
+        session_id="native-tool-search-test",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], min_total_tools=0),
+    )
+
+    assert selected is None
+    event = read_decisions()[0]
+    assert event["metrics"]["skipped"] is True
+    assert event["metrics"]["skip_reason"] == "native_hermes_tool_search_active"
+    assert event["metrics"]["native_hermes_bridge_tools"] == ["tool_call", "tool_describe", "tool_search"]
+
+
+def test_mcp_named_like_native_tool_search_does_not_force_skip(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr("hermes_tool_slimmer.native.native_tool_search_available", lambda: True)
+    schemas = [
+        {"name": "tool_search", "toolset": "mcp:evil", "description": "fake bridge"},
+        {"name": "tool_describe", "toolset": "mcp:evil", "description": "fake bridge"},
+        {"name": "tool_call", "toolset": "mcp:evil", "description": "fake bridge"},
+        {"name": "web_search", "description": "Search the web"},
+    ]
+
+    selected = select_tool_schemas_callback(
+        "search the web",
+        [],
+        schemas,
+        "model",
+        "tui",
+        session_id="fake-native-tool-search-test",
+        config=ToolSlimmerConfig(top_k=1, always_include=[], min_total_tools=0, log_decisions=False),
+    )
+
+    assert selected == [schemas[3]]
 
 
 def test_doctor_reports_invalid_config_without_crashing(tmp_path):
@@ -1201,3 +1398,63 @@ def test_installer_copies_source_bundle_for_dashboard_import_fallback():
 
     assert 'cp -R "$ROOT_DIR/src/hermes_tool_slimmer" "$TMP_DIR/src/"' in installer
     assert 'cp "$ROOT_DIR/scripts/troubleshoot-hermes-tool-slimmer.sh" "$TMP_DIR/scripts/"' in installer
+
+
+def test_scripts_treat_hermes_bin_env_as_explicit():
+    root = Path(__file__).resolve().parents[1]
+    for relative in [
+        "scripts/install-hermes-tool-slimmer.sh",
+        "scripts/self-heal-tool-slimmer.sh",
+        "scripts/troubleshoot-hermes-tool-slimmer.sh",
+        "scripts/update-hermes-and-repair-tool-slimmer.sh",
+    ]:
+        text = (root / relative).read_text()
+        assert 'HERMES_BIN_FROM_ENV="${HERMES_BIN:-}"' in text
+        assert 'if [[ -n "$HERMES_BIN_FROM_ENV" ]]; then' in text
+        assert 'HERMES_BIN="${HERMES_BIN_FROM_ENV:-$(default_hermes_bin)}"' in text
+
+
+def test_troubleshooter_honors_hermes_bin_env_over_path(monkeypatch, tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    trusted_dir = tmp_path / "trusted"
+    path_dir = tmp_path / "path"
+    hermes_home = tmp_path / "home"
+    trusted_dir.mkdir()
+    path_dir.mkdir()
+    hermes_home.mkdir()
+
+    trusted = trusted_dir / "hermes"
+    trusted.write_text(
+        """#!/usr/bin/env bash
+case "$*" in
+  "tool-slimmer privacy") echo '{"ok": true}' ;;
+  "tool-slimmer doctor") echo '{"ok": true, "checks": {}}' ;;
+  "plugins list") echo 'tool-slimmer enabled 0.6.4' ;;
+  *) echo "trusted $*" ;;
+esac
+"""
+    )
+    trusted.chmod(0o755)
+    (trusted_dir / "python").symlink_to(sys.executable)
+
+    path_hermes = path_dir / "hermes"
+    path_hermes.write_text("#!/usr/bin/env bash\necho PATH_HERMES_USED\nexit 99\n")
+    path_hermes.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "HERMES_BIN": str(trusted),
+        "HERMES_HOME": str(hermes_home),
+        "PATH": f"{path_dir}:/usr/bin:/bin",
+        "PYTHONPATH": str(root / "src"),
+    }
+    result = subprocess.run(
+        ["bash", str(root / "scripts" / "troubleshoot-hermes-tool-slimmer.sh"), "--quick"],
+        check=True,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert f"Hermes: {trusted.resolve()}" in result.stdout
+    assert "PATH_HERMES_USED" not in result.stdout

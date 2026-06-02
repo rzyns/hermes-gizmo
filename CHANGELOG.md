@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.4 - 2026-05-30
+
+Installer environment override repair.
+
+### Fixed
+
+- Installer, updater, self-heal, and troubleshooting scripts now treat an environment-provided `HERMES_BIN` as an explicit trusted binary, matching the documented `HERMES_BIN=... bash ...` install flow and avoiding fallback to `command -v hermes`.
+
+## 0.6.3 - 2026-05-30
+
+Security hardening release.
+
+### Fixed
+
+- Enforces disabled tool, disabled toolset, MCP/native origin, and malformed-schema policy consistently across keyword, two-pass, Anthropic Tool Search, full-tool fallback, and guardrail skip paths.
+- Keeps global disabled-tool policy when applying platform profiles or Guided Setup recommendations.
+- Restricts model-callable `tool_slimmer_select` so it no longer reads live/indexed catalogs unless explicitly opted in and no longer accepts `mode: eager`.
+- Stops logging prompt-derived expanded query tokens; decision logs now store only the expanded-query token count.
+- Redacts live snapshot summaries returned to the dashboard and refuses stale live-schema snapshots by default.
+- Avoids fixed `/tmp/hermes-tool-slimmer` installer commands in docs, prevents installer raw-decision output, and hardens self-heal systemd unit generation.
+
 ## 0.6.1 - 2026-05-30
 
 Install and support diagnostics repair release.

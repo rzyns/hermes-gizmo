@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERMES_BIN_FROM_ENV="${HERMES_BIN:-}"
+HERMES_BIN_EXPLICIT=0
 UPDATE_BACKUP_ARGS=()
 INSTALL_ARGS=()
 
@@ -15,7 +17,10 @@ default_hermes_bin() {
   command -v hermes || true
 }
 
-HERMES_BIN="${HERMES_BIN:-$(default_hermes_bin)}"
+if [[ -n "$HERMES_BIN_FROM_ENV" ]]; then
+  HERMES_BIN_EXPLICIT=1
+fi
+HERMES_BIN="${HERMES_BIN_FROM_ENV:-$(default_hermes_bin)}"
 
 usage() {
   cat <<'USAGE'
@@ -55,6 +60,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --hermes-bin)
       HERMES_BIN="${2:-}"
+      HERMES_BIN_EXPLICIT=1
       shift 2
       ;;
     --hermes-home)
@@ -74,6 +80,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$HERMES_BIN_EXPLICIT" != "1" ]]; then
+  HERMES_BIN="$(default_hermes_bin)"
+fi
+
 step() {
   printf '\n==> %s\n' "$1"
 }
@@ -81,6 +91,19 @@ step() {
 fail() {
   echo "ERROR: $*" >&2
   exit 1
+}
+
+compatibility_notice() {
+  cat <<'NOTICE'
+
+==> Compatibility note
+Recent Hermes Agent builds include native Tool Search for very large MCP/plugin
+tool catalogs. That native Hermes feature is probably the better default when it
+activates. Tool Slimmer detects Hermes' native bridge and will not double-slim
+those requests. The update repair below preserves Tool Slimmer's dashboard,
+counters, diagnostics, profiles, and deterministic slimming for requests where
+native Tool Search is inactive.
+NOTICE
 }
 
 [[ -n "$HERMES_BIN" ]] || fail "Hermes executable not found. Install Hermes or pass --hermes-bin PATH."
@@ -92,6 +115,7 @@ export HERMES_HOME
 step "Updating Hermes non-interactively"
 echo "Hermes: $HERMES_BIN"
 echo "Hermes home: $HERMES_HOME"
+compatibility_notice
 "$HERMES_BIN" update --yes "${UPDATE_BACKUP_ARGS[@]}"
 
 step "Repairing Tool Slimmer after Hermes update"

@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_NAME="tool-slimmer"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERMES_BIN_FROM_ENV="${HERMES_BIN:-}"
+HERMES_BIN_EXPLICIT=0
 RESTART_SERVICES=1
 INSTALL_SYSTEMD=0
 UNINSTALL_SYSTEMD=0
@@ -18,7 +20,10 @@ default_hermes_bin() {
   command -v hermes || true
 }
 
-HERMES_BIN="${HERMES_BIN:-$(default_hermes_bin)}"
+if [[ -n "$HERMES_BIN_FROM_ENV" ]]; then
+  HERMES_BIN_EXPLICIT=1
+fi
+HERMES_BIN="${HERMES_BIN_FROM_ENV:-$(default_hermes_bin)}"
 
 usage() {
   cat <<'USAGE'
@@ -63,6 +68,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --hermes-bin)
       HERMES_BIN="${2:-}"
+      HERMES_BIN_EXPLICIT=1
       shift 2
       ;;
     --hermes-home)
@@ -81,6 +87,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$HERMES_BIN_EXPLICIT" != "1" ]]; then
+  HERMES_BIN="$(default_hermes_bin)"
+fi
+
 step() {
   printf '\n==> %s\n' "$1"
 }
@@ -90,6 +100,16 @@ fail() {
   exit 1
 }
 
+reject_systemd_value() {
+  local name="$1"
+  local value="$2"
+  case "$value" in
+    *$'\n'*|*$'\r'*|*'"'*)
+      fail "$name contains characters that are unsafe for a generated systemd unit"
+      ;;
+  esac
+}
+
 unit_path() {
   printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/hermes-tool-slimmer-self-heal.service"
 }
@@ -97,6 +117,12 @@ unit_path() {
 install_systemd_unit() {
   command -v systemctl >/dev/null 2>&1 || fail "systemctl is not available"
   [[ -n "$HERMES_BIN" ]] || fail "Hermes executable not found. Pass --hermes-bin PATH."
+  [[ -x "$HERMES_BIN" ]] || fail "Hermes executable is not executable: $HERMES_BIN"
+  HERMES_BIN="$(readlink -f "$HERMES_BIN")"
+  ROOT_DIR="$(readlink -f "$ROOT_DIR")"
+  reject_systemd_value "ROOT_DIR" "$ROOT_DIR"
+  reject_systemd_value "HERMES_BIN" "$HERMES_BIN"
+  reject_systemd_value "HERMES_HOME" "$HERMES_HOME"
   mkdir -p "$(dirname "$(unit_path)")"
   cat >"$(unit_path)" <<EOF
 [Unit]
@@ -107,8 +133,8 @@ Before=hermes-gateway.service hermes-dashboard.service
 
 [Service]
 Type=oneshot
-Environment=HERMES_HOME=$HERMES_HOME
-ExecStart=/usr/bin/env bash $ROOT_DIR/scripts/self-heal-tool-slimmer.sh --hermes-bin $HERMES_BIN --hermes-home $HERMES_HOME
+Environment="HERMES_HOME=$HERMES_HOME"
+ExecStart=/usr/bin/env bash "$ROOT_DIR/scripts/self-heal-tool-slimmer.sh" --hermes-bin "$HERMES_BIN" --hermes-home "$HERMES_HOME"
 
 [Install]
 WantedBy=default.target

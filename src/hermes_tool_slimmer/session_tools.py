@@ -299,11 +299,26 @@ def _get_session_id(args: dict[str, Any], kwargs: dict[str, Any]) -> str | None:
     return kwargs.get("session_id")
 
 
+def _resolve_session_tool_schemas(args: dict[str, Any], kwargs: dict[str, Any]) -> tuple[list[Schema], str]:
+    """Resolve schemas for session-management tools.
+
+    Unlike the model-facing selector, these diagnostic/progressive-loading tools are
+    supposed to search the live/snapshot catalog when no explicit schemas were
+    supplied. Preserve explicit empty `schemas=[]` as a real empty input for tests
+    and callers that want to avoid fallback.
+    """
+    has_explicit_schemas = (isinstance(args, dict) and "schemas" in args) or "schemas" in kwargs
+    if has_explicit_schemas:
+        return _resolve_schemas(args, kwargs)
+    fallback_args = {**args, "allow_catalog_fallback": True}
+    return _resolve_schemas(fallback_args, kwargs)
+
+
 def tool_slimmer_tool_search(args: dict, **kwargs: Any) -> str:
     """Search available tools by query and return ranked, loadable results."""
     try:
         query = str(args.get("query", "")).strip()
-        schemas, schema_source = _resolve_schemas(args, kwargs)
+        schemas, schema_source = _resolve_session_tool_schemas(args, kwargs)
         if not schemas:
             return _json({
                 "ok": False,
@@ -393,7 +408,7 @@ def tool_slimmer_tool_details(args: dict, **kwargs: Any) -> str:
         name = str(args.get("name", "")).strip()
         do_load = bool(args.get("load", False))
         do_unload = bool(args.get("unload", False))
-        schemas, schema_source = _resolve_schemas(args, kwargs)
+        schemas, schema_source = _resolve_session_tool_schemas(args, kwargs)
         if not schemas:
             return _json({
                 "ok": False,

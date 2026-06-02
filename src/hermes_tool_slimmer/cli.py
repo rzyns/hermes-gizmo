@@ -16,6 +16,7 @@ from .config import ToolSlimmerConfig, config_path, load_config
 from .corpus import tool_name
 from .index_store import IndexStore
 from .metrics import read_decisions, reduction_metrics, summarize_decisions
+from .native import native_tool_search_status
 from .selector import ToolSelector
 
 
@@ -125,12 +126,14 @@ def privacy_inventory() -> dict[str, object]:
             "skip_reason",
             "selected_scores",
             "top_candidates",
-            "expanded_query_tokens",
+            "expanded_query_token_count",
             "two_pass_catalog_tools",
             "two_pass_catalog_approx_tokens",
             "two_pass_hydrated_tools",
             "two_pass_requested_tools",
             "two_pass_phase",
+            "native_hermes_tool_search",
+            "native_hermes_bridge_tools",
         ],
         "notes": [
             "Raw user prompts are not written to decisions.jsonl.",
@@ -150,6 +153,8 @@ def diagnostic_report(limit: int = 200) -> dict[str, object]:
         cfg = ToolSlimmerConfig(enabled=False)
         cfg_error = str(exc)
     index = store.load() or {}
+    live_schemas = store.load_live_schemas(require_session=False)
+    status_schemas = live_schemas or _schemas_from_index(index)
     events = read_decisions(limit=limit)
     summary = summarize_decisions(limit=limit, require_session=True)
     summary.pop("recent", None)
@@ -173,6 +178,7 @@ def diagnostic_report(limit: int = 200) -> dict[str, object]:
             "platform": platform.platform(),
         },
         "package": _package_info(),
+        "native_hermes_tool_search": native_tool_search_status(status_schemas),
         "config": {
             "error": cfg_error,
             "enabled": cfg.enabled,
@@ -387,6 +393,16 @@ def run_doctor(
     else:
         checks["always_include"] = _check("warn", "no schemas supplied; cannot validate always_include")
 
+    native_schemas = store.load_live_schemas(require_session=False) or schemas
+    native_status = native_tool_search_status(native_schemas)
+    checks["native_hermes_tool_search"] = _check(
+        "pass" if native_status["available"] or native_status["active"] else "warn",
+        "Hermes native Tool Search is available; Tool Slimmer skips active slimming when bridge tools are already assembled"
+        if native_status["available"] or native_status["active"]
+        else "Hermes native Tool Search was not found in this Python environment",
+        native_status,
+    )
+
     selector_supported = False
     try:
         import hermes_cli.plugins as plugins  # type: ignore[import-not-found]
@@ -491,6 +507,7 @@ def handle_cli(args: argparse.Namespace) -> int:
     if args.command == "status":
         store = IndexStore()
         index = store.load() or {}
+        live_schemas = store.load_live_schemas(require_session=False)
         live_snapshots = store.live_schema_summaries()
         latest_live = next((item for item in live_snapshots if item.get("label") == "latest"), None)
         print(
@@ -501,6 +518,7 @@ def handle_cli(args: argparse.Namespace) -> int:
                     "top_k": cfg.top_k,
                     "min_score": cfg.min_score,
                     "two_pass": cfg.two_pass.__dict__,
+                    "native_hermes_tool_search": native_tool_search_status(live_schemas or _schemas_from_index(index)),
                     "index_path": str(store.path),
                     "total_tools_indexed": index.get("total_tools", 0),
                     "source_context": latest_live,

@@ -99,6 +99,26 @@ def test_config_profiles_overlay_by_platform():
     assert cli.top_k == 9
 
 
+def test_profile_overlay_merges_disabled_policy():
+    cfg = ToolSlimmerConfig.from_mapping(
+        {
+            "disabled_tools": ["global_block"],
+            "disabled_toolsets": ["global_toolset"],
+            "profiles": {
+                "telegram": {
+                    "disabled_tools": ["profile_block"],
+                    "disabled_toolsets": ["profile_toolset"],
+                },
+            },
+        }
+    )
+
+    telegram = cfg.for_context(platform="telegram")
+
+    assert telegram.disabled_tools == ["global_block", "profile_block"]
+    assert telegram.disabled_toolsets == ["global_toolset", "profile_toolset"]
+
+
 def test_config_rejects_invalid_structured_types():
     with pytest.raises(ValueError, match="always_include"):
         ToolSlimmerConfig.from_mapping({"always_include": {"terminal": True}})

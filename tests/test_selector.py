@@ -73,6 +73,19 @@ def test_tool_slimmer_introspection_tools_do_not_compete_for_rank():
     assert "tool_slimmer_select" not in result.scores
 
 
+def test_hermes_native_bridge_tools_do_not_compete_for_rank():
+    cfg = ToolSlimmerConfig(top_k=1, always_include=[])
+    schemas = [
+        {"name": "tool_search", "description": "Search available deferred tools"},
+        {"name": "tool_describe", "description": "Describe a deferred tool"},
+        {"name": "tool_call", "description": "Call a deferred tool"},
+        {"name": "web_search", "description": "Search the web"},
+    ]
+    result = ToolSelector(cfg).select("search the web", schemas)
+    assert result.selected_names == ["web_search"]
+    assert "tool_search" not in result.scores
+
+
 def test_selector_does_not_select_disabled_tools():
     cfg = ToolSlimmerConfig(top_k=5, always_include=[], disabled_toolsets=["github"])
     result = ToolSelector(cfg).select("github code search", SCHEMAS)

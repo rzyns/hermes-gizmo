@@ -15,6 +15,16 @@
 
 Hermes Tool Slimmer reduces repeated tool-schema overhead by selecting the smallest useful tool set for a turn. It builds an indexable corpus from Hermes tool schemas, ranks candidate tools with local BM25 plus explicit boosts, and fails open to the original schema list when anything goes wrong.
 
+## Honest Compatibility Note
+
+Recent Hermes Agent builds include a native progressive tool loader that exposes `tool_search`, `tool_describe`, and `tool_call` when MCP/plugin tools cross Hermes' own schema budget threshold.
+
+That native Hermes feature is probably the better default for very large MCP/plugin catalogs because it lives in Hermes core and can lazily reach deferred tools. Tool Slimmer is still useful for deterministic one-pass slimming, dashboard visibility, counters, diagnostics, config profiles, evals, and installs where Hermes native Tool Search is unavailable or does not activate.
+
+Tool Slimmer detects Hermes' native bridge and will not double-slim those requests. In that case Hermes keeps control of lazy loading, while Tool Slimmer keeps the dashboard, diagnostics, counters, advisor, and local ranking/eval tools useful.
+
+Do not run Tool Slimmer `two_pass` mode on top of Hermes native Tool Search unless you are intentionally testing. If you want Tool Slimmer to be the active selector instead, disable Hermes native Tool Search in Hermes config first; otherwise the safe default is to let Hermes' built-in bridge handle the request.
+
 ## Support
 
 For Tool Slimmer install bugs, dashboard issues, ranking misses, or configuration questions, please open an issue at [alias8818/hermes-tool-slimmer](https://github.com/alias8818/hermes-tool-slimmer/issues) instead of posting inside unrelated Hermes Agent issue threads. You can also reach Aliasocracy on Discord at `Aliasocracy#1439`; mention Hermes Tool Slimmer in the message so it is clear the contact is about this project.
@@ -86,7 +96,7 @@ That path clones the repo to `~/.hermes/plugins/tool-slimmer`, runs the same det
 From a terminal on the machine that runs Hermes:
 
 ```bash
-cd /tmp
+cd "$HOME"
 git clone https://github.com/alias8818/hermes-tool-slimmer.git
 cd hermes-tool-slimmer
 ```
@@ -104,6 +114,23 @@ Verify it worked:
 ```bash
 hermes tool-slimmer doctor
 ```
+
+To update an existing terminal install, update the local checkout first, then rerun the installer:
+
+```bash
+cd "$HOME"
+if [ -d "$HOME/hermes-tool-slimmer/.git" ]; then
+  cd "$HOME/hermes-tool-slimmer"
+  git pull --ff-only
+else
+  git clone https://github.com/alias8818/hermes-tool-slimmer.git "$HOME/hermes-tool-slimmer"
+  cd "$HOME/hermes-tool-slimmer"
+fi
+
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+```
+
+The installer installs the version in the checkout you run it from. If you rerun an old checkout, for example an old `/tmp/hermes-tool-slimmer` folder created by an agent, it will reinstall that old version.
 
 When updating Hermes later, use the bundled update-and-repair helper:
 
@@ -124,15 +151,15 @@ On login/boot it runs `doctor`; if Tool Slimmer is enabled but the selector hook
 If an agent or hosted approval layer blocks direct script execution, run the same installer from a normal terminal, or ask the agent to request approval for this exact command after the repo is downloaded:
 
 ```bash
-bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 ```
 
-If the repo was unpacked somewhere else, replace `/tmp/hermes-tool-slimmer` with that directory. A block at this step means the environment denied running the script; it does not mean Hermes config or Tool Slimmer source is broken.
+If the repo was unpacked somewhere else, replace `$HOME/hermes-tool-slimmer` with that directory. Avoid running installer scripts from a predictable shared `/tmp` checkout. A block at this step means the environment denied running the script; it does not mean Hermes config or Tool Slimmer source is broken.
 
 If the machine has multiple `hermes` launchers, use the Hermes venv launcher:
 
 ```bash
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 ```
 
 This avoids installing the package into one Python environment while running Hermes from another.
@@ -141,8 +168,10 @@ If Hermes Agent is doing the install for you, give it this instruction:
 
 ```text
 Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
-After downloading the repo, run:
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash /tmp/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh
+Use $HOME/hermes-tool-slimmer as the checkout path. If it already exists and is a git checkout, run git pull --ff-only there first. If it does not exist, clone the repo there.
+Do not use an old /tmp/hermes-tool-slimmer checkout.
+Then run:
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 If the environment asks for approval to run that script, request approval for that exact command.
 Then verify with:
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor

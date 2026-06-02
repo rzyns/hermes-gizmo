@@ -78,6 +78,8 @@ def _resolve_schemas(args: dict[str, Any], kwargs: dict[str, Any]) -> tuple[list
     if snapshot_candidates:
         snapshot_schemas = max(snapshot_candidates, key=len)
 
+    if not args.get("allow_catalog_fallback"):
+        return [], "none"
     live = _live_hermes_schemas()
     if live and (len(live) >= len(snapshot_schemas) or not platform):
         try:
@@ -158,13 +160,23 @@ def tool_slimmer_select(args: dict, **kwargs: Any) -> str:
     try:
         cfg = load_config(args.get("config_path"))
         cfg = cfg.for_context(platform=args.get("platform"), profile=args.get("profile"))
-        if args.get("mode") is not None:
+        mode = args.get("mode")
+        if mode == "eager":
+            return _json({"ok": False, "error": "mode_not_allowed", "message": "eager mode is not available through the model-callable selector."})
+        if mode is not None:
             cfg = ToolSlimmerConfig.from_mapping(
-                {**cfg.__dict__, "mode": args.get("mode"), "anthropic": cfg.anthropic.__dict__}
+                {**cfg.__dict__, "mode": mode, "anthropic": cfg.anthropic.__dict__, "two_pass": cfg.two_pass.__dict__}
             )
         schemas, schema_source = _resolve_schemas(args, kwargs)
         if not schemas:
-            return _json({"ok": False, "error": "no_schemas_available", "message": "Provide schemas, run inside Hermes with live tool definitions, or rebuild the Tool Slimmer index."})
+            return _json(
+                {
+                    "ok": False,
+                    "error": "no_schemas_available",
+                    "schema_source": schema_source,
+                    "message": "Provide schemas, or explicitly set allow_catalog_fallback to use live/indexed tool catalogs.",
+                }
+            )
         query = args.get("query") or args.get("text") or ""
         result = ToolSelector(cfg).select(query, schemas)
         return _json({"ok": True, "mode": result.mode, "schema_source": schema_source, "schema_count": len(schemas), "selected": result.selected_names, "scores": result.scores, "score_details": result.score_details, "fail_open": result.fail_open, "reason": result.reason})

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections import Counter
+from collections import Counter, deque
 from typing import Any, Iterable
 
 from .config import hermes_home
@@ -62,9 +62,10 @@ def read_decisions(limit: int = 200) -> list[dict[str, object]]:
     path = hermes_home() / "tool-slimmer" / "decisions.jsonl"
     if not path.exists():
         return []
-    lines = path.read_text(encoding="utf-8").splitlines()
     events: list[dict[str, object]] = []
-    for line in lines[-max(1, limit) :]:
+    with path.open("r", encoding="utf-8") as handle:
+        lines = deque(handle, maxlen=max(1, limit))
+    for line in lines:
         try:
             payload = json.loads(line)
         except json.JSONDecodeError:

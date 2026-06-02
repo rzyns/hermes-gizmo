@@ -259,6 +259,11 @@ def _merge_profile_overlay(raw: dict[str, Any], overlay: dict[str, Any]) -> None
             if not isinstance(aliases, dict):
                 aliases = {}
             raw["aliases"] = {**aliases, **value}
+        elif key in {"disabled_tools", "disabled_toolsets"} and isinstance(value, list):
+            current = raw.get(key)
+            if not isinstance(current, list):
+                current = []
+            raw[key] = _dedupe_strings([*current, *value])
         elif key != "profiles":
             raw[key] = value
 
@@ -291,6 +296,17 @@ def _normalize_mapping(
     return normalized
 
 
+def _dedupe_strings(values: list[Any]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value)
+        if text not in seen:
+            out.append(text)
+            seen.add(text)
+    return out
+
+
 def hermes_home() -> Path:
     return Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes")).expanduser()
 
@@ -299,17 +315,23 @@ def config_path() -> Path:
     return Path(os.environ.get("HERMES_CONFIG", hermes_home() / "config.yaml")).expanduser()
 
 
-def load_config(path: str | Path | None = None) -> ToolSlimmerConfig:
+def load_config(path: str | Path | None = None, *, strict: bool = False) -> ToolSlimmerConfig:
     target = Path(path).expanduser() if path else config_path()
     if not target.is_file():
         return ToolSlimmerConfig()
     try:
         data = yaml.safe_load(target.read_text()) or {}
-    except yaml.YAMLError:
+    except yaml.YAMLError as exc:
+        if strict:
+            raise ValueError(f"Could not parse tool_slimmer config: {target}") from exc
         return ToolSlimmerConfig()
     if not isinstance(data, dict):
+        if strict:
+            raise ValueError(f"tool_slimmer config must be a mapping: {target}")
         return ToolSlimmerConfig()
     section = data.get("tool_slimmer", data if "mode" in data else {})
     if not isinstance(section, dict):
+        if strict:
+            raise ValueError(f"tool_slimmer section must be a mapping: {target}")
         return ToolSlimmerConfig()
     return ToolSlimmerConfig.from_mapping(section)

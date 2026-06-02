@@ -40,7 +40,8 @@ def test_index_store_tracks_live_schema_summaries_by_platform(tmp_path):
 
     assert {item["platform"] for item in summaries} == {"cli", "api_server"}
     assert any(item["label"] == "latest" and item["platform"] == "api_server" for item in summaries)
-    assert any(item["label"] == "cli" and item["session_id"] == "cli-1" for item in summaries)
+    assert any(item["label"] == "cli" and item["has_session_id"] is True for item in summaries)
+    assert all("session_id" not in item and "model" not in item and "path" not in item for item in summaries)
 
 
 def test_index_store_ignores_probe_live_schemas(tmp_path):

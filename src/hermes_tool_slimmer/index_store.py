@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -51,11 +52,11 @@ class IndexStore:
             "schemas": schemas,
             "context": context,
         }
-        self.live_schemas_path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+        _write_private_json(self.live_schemas_path, payload)
         platform = _safe_snapshot_name(context.get("platform"))
         if platform:
             self.live_schemas_dir.mkdir(parents=True, exist_ok=True)
-            (self.live_schemas_dir / f"{platform}.json").write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+            _write_private_json(self.live_schemas_dir / f"{platform}.json", payload)
         return payload
 
     def load_live_schema_snapshot(self, platform: str | None = None) -> dict[str, Any] | None:
@@ -112,19 +113,22 @@ class IndexStore:
                     "platform": platform,
                     "total_tools": _safe_int(payload.get("total_tools")),
                     "schema_count": _safe_int(context.get("schema_count")),
-                    "session_id": context.get("session_id"),
-                    "model": context.get("model"),
-                    "provider": context.get("provider"),
+                    "has_session_id": bool(context.get("session_id")),
                     "checksum": payload.get("checksum"),
                     "updated_at": updated_at,
-                    "path": str(path),
                 }
             )
         return summaries
 
-    def load_live_schemas(self, min_total_tools: int = 0, require_session: bool = True) -> list[Schema]:
+    def load_live_schemas(self, min_total_tools: int = 0, require_session: bool = True, max_age_seconds: int | None = 3600) -> list[Schema]:
         if not self.live_schemas_path.exists():
             return []
+        if max_age_seconds is not None:
+            try:
+                if time.time() - self.live_schemas_path.stat().st_mtime > max_age_seconds:
+                    return []
+            except OSError:
+                return []
         try:
             payload = json.loads(self.live_schemas_path.read_text())
         except json.JSONDecodeError:
@@ -175,3 +179,11 @@ def _safe_snapshot_name(value: Any) -> str:
         return ""
     safe = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in text)
     return safe.strip("._-")
+
+
+def _write_private_json(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass

@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_NAME="tool-slimmer"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERMES_BIN_FROM_ENV="${HERMES_BIN:-}"
+HERMES_BIN_EXPLICIT=0
 PATCH_CORE=1
 RESTART_SERVICES=1
 
@@ -16,7 +18,10 @@ default_hermes_bin() {
   command -v hermes || true
 }
 
-HERMES_BIN="${HERMES_BIN:-$(default_hermes_bin)}"
+if [[ -n "$HERMES_BIN_FROM_ENV" ]]; then
+  HERMES_BIN_EXPLICIT=1
+fi
+HERMES_BIN="${HERMES_BIN_FROM_ENV:-$(default_hermes_bin)}"
 
 usage() {
   cat <<'USAGE'
@@ -46,6 +51,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --hermes-bin)
       HERMES_BIN="${2:-}"
+      HERMES_BIN_EXPLICIT=1
       shift 2
       ;;
     --hermes-home)
@@ -64,6 +70,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$HERMES_BIN_EXPLICIT" != "1" ]]; then
+  HERMES_BIN="$(default_hermes_bin)"
+fi
+
 step() {
   printf '\n==> %s\n' "$1"
 }
@@ -71,6 +81,19 @@ step() {
 fail() {
   echo "ERROR: $*" >&2
   exit 1
+}
+
+compatibility_notice() {
+  cat <<'NOTICE'
+
+==> Compatibility note
+Recent Hermes Agent builds include native Tool Search for very large MCP/plugin
+tool catalogs. That native Hermes feature is probably the better default when it
+activates. Tool Slimmer detects Hermes' native bridge and will not double-slim
+those requests. Tool Slimmer still provides deterministic slimming when native
+Tool Search is inactive, plus dashboard visibility, counters, diagnostics,
+profiles, and eval tools.
+NOTICE
 }
 
 [[ -n "$HERMES_BIN" ]] || fail "Hermes executable not found. Install Hermes or pass --hermes-bin PATH."
@@ -88,6 +111,8 @@ step "Using Hermes"
 echo "Hermes: $HERMES_BIN"
 echo "Python: $HERMES_PYTHON"
 echo "Hermes home: $HERMES_HOME"
+
+compatibility_notice
 
 step "Installing Python package into Hermes environment"
 if command -v uv >/dev/null 2>&1; then
@@ -442,7 +467,7 @@ else
 fi
 
 step "Final health report"
-if bash "$ROOT_DIR/scripts/troubleshoot-hermes-tool-slimmer.sh" --hermes-bin "$HERMES_BIN" --hermes-home "$HERMES_HOME"; then
+if bash "$ROOT_DIR/scripts/troubleshoot-hermes-tool-slimmer.sh" --quick --hermes-bin "$HERMES_BIN" --hermes-home "$HERMES_HOME"; then
   echo "Install completed."
 else
   echo "Install completed with health warnings; see report above."

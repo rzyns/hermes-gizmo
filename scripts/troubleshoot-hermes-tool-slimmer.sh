@@ -2,6 +2,8 @@
 set -euo pipefail
 
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERMES_BIN_FROM_ENV="${HERMES_BIN:-}"
+HERMES_BIN_EXPLICIT=0
 QUICK=0
 
 default_hermes_bin() {
@@ -13,7 +15,10 @@ default_hermes_bin() {
   command -v hermes || true
 }
 
-HERMES_BIN="${HERMES_BIN:-$(default_hermes_bin)}"
+if [[ -n "$HERMES_BIN_FROM_ENV" ]]; then
+  HERMES_BIN_EXPLICIT=1
+fi
+HERMES_BIN="${HERMES_BIN_FROM_ENV:-$(default_hermes_bin)}"
 
 usage() {
   cat <<'USAGE'
@@ -38,6 +43,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --hermes-bin)
       HERMES_BIN="${2:-}"
+      HERMES_BIN_EXPLICIT=1
       shift 2
       ;;
     --hermes-home)
@@ -55,6 +61,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$HERMES_BIN_EXPLICIT" != "1" ]]; then
+  HERMES_BIN="$(default_hermes_bin)"
+fi
 
 section() {
   printf '\n== %s ==\n' "$1"
