@@ -12,7 +12,7 @@
 
 ## Selector Hook Contract
 
-Hermes Gizmo uses the same selector hook surface as upstream Hermes Gizmo. The `select_tool_schemas` callback is injected between `pre_llm_call` and provider request construction.
+Hermes Gizmo uses the same selector hook surface as upstream Tool Slimmer. The `select_tool_schemas` callback is injected between `pre_llm_call` and provider request construction.
 
 ### Registration Surface
 

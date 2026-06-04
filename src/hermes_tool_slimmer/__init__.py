@@ -20,17 +20,6 @@ from .tools import tool_slimmer_hydrate_tools, tool_slimmer_request_full_tools, 
 __all__ = ["register"]
 __version__ = "0.6.4"
 
-# Alias mapping for soft rename (Hermes Gizmo)
-_GIZMO_TOOL_ALIASES = {
-    "gizmo_status": tool_slimmer_status,
-    "gizmo_select": tool_slimmer_select,
-    "gizmo_request_full_tools": tool_slimmer_request_full_tools,
-    "gizmo_hydrate_tools": tool_slimmer_hydrate_tools,
-    "gizmo_loaded_tools": tool_slimmer_loaded_tools,
-    "gizmo_tool_search": tool_slimmer_tool_search,
-    "gizmo_tool_details": tool_slimmer_tool_details,
-}
-
 
 def register(ctx):
     """Register Hermes Gizmo plugin (formerly Tool Slimmer)."""

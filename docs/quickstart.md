@@ -1,6 +1,6 @@
 # Quickstart — Hermes Gizmo Fork
 
-This is the quickstart for the **Hermes Gizmo fork** of Hermes Gizmo. For upstream install (dashboard, script installer), see the original quickstart and README.
+This is the quickstart for the **Hermes Gizmo fork** of Tool Slimmer. For upstream install (dashboard, script installer), see the original quickstart and README.
 
 ## Prerequisites
 

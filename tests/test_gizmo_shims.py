@@ -80,3 +80,68 @@ class TestGizmoAliasRegistration:
         cli_names = {r.kwargs["name"] for r in ctx.register_cli_command.call_args_list}
         assert "tool-slimmer" in cli_names
         assert "gizmo" in cli_names
+
+
+class TestGizmoManifestCoherence:
+    """Both root and nested plugin manifests must declare the same alias surface."""
+
+    def _load_plugin_manifest(self, path: Path) -> dict:
+        import yaml
+        return yaml.safe_load(path.read_text()) or {}
+
+    @property
+    def _expected_tools(self) -> set[str]:
+        return {
+            "tool_slimmer_select", "tool_slimmer_status",
+            "tool_slimmer_request_full_tools", "tool_slimmer_hydrate_tools",
+            "tool_slimmer_loaded_tools", "tool_slimmer_tool_search",
+            "tool_slimmer_tool_details",
+            "gizmo_select", "gizmo_status",
+            "gizmo_request_full_tools", "gizmo_hydrate_tools",
+            "gizmo_loaded_tools", "gizmo_tool_search",
+            "gizmo_tool_details",
+        }
+
+    @property
+    def _expected_commands(self) -> set[str]:
+        return {"tool-slimmer", "gizmo"}
+
+    @property
+    def _expected_cli(self) -> set[str]:
+        return {"tool-slimmer", "gizmo"}
+
+    def test_root_manifest_declares_all_tools(self):
+        repo_root = Path(__file__).parent.parent
+        manifest = self._load_plugin_manifest(repo_root / "plugin.yaml")
+        declared = set(manifest.get("provides_tools", []))
+        assert self._expected_tools.issubset(declared), f"Root plugin.yaml missing: {self._expected_tools - declared}"
+
+    def test_root_manifest_declares_all_commands(self):
+        repo_root = Path(__file__).parent.parent
+        manifest = self._load_plugin_manifest(repo_root / "plugin.yaml")
+        declared = set(manifest.get("provides_commands", []))
+        assert self._expected_commands.issubset(declared), f"Root plugin.yaml missing commands: {self._expected_commands - declared}"
+
+    def test_root_manifest_declares_all_cli(self):
+        repo_root = Path(__file__).parent.parent
+        manifest = self._load_plugin_manifest(repo_root / "plugin.yaml")
+        declared = set(manifest.get("provides_cli", []))
+        assert self._expected_cli.issubset(declared), f"Root plugin.yaml missing CLI: {self._expected_cli - declared}"
+
+    def test_nested_dashboard_manifest_declares_all_tools(self):
+        repo_root = Path(__file__).parent.parent
+        manifest = self._load_plugin_manifest(repo_root / "dashboard-plugin" / "tool-slimmer" / "plugin.yaml")
+        declared = set(manifest.get("provides_tools", []))
+        assert self._expected_tools.issubset(declared), f"Nested plugin.yaml missing: {self._expected_tools - declared}"
+
+    def test_nested_dashboard_manifest_declares_all_commands(self):
+        repo_root = Path(__file__).parent.parent
+        manifest = self._load_plugin_manifest(repo_root / "dashboard-plugin" / "tool-slimmer" / "plugin.yaml")
+        declared = set(manifest.get("provides_commands", []))
+        assert self._expected_commands.issubset(declared), f"Nested plugin.yaml missing commands: {self._expected_commands - declared}"
+
+    def test_nested_dashboard_manifest_declares_all_cli(self):
+        repo_root = Path(__file__).parent.parent
+        manifest = self._load_plugin_manifest(repo_root / "dashboard-plugin" / "tool-slimmer" / "plugin.yaml")
+        declared = set(manifest.get("provides_cli", []))
+        assert self._expected_cli.issubset(declared), f"Nested plugin.yaml missing CLI: {self._expected_cli - declared}"
