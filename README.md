@@ -1,4 +1,4 @@
-# Hermes Tool Slimmer — Hermes Gizmo Fork
+# Hermes Gizmo
 
 > **Fork notice**: This repo is a private Hermes Gizmo fork of `alias8818/hermes-tool-slimmer`. It may contain experimental features (semantic_hybrid, progressive/session-loaded tools, isolated-profile wiring) not present in upstream. Do not push to upstream or publish this fork without explicit approval.
 >
@@ -11,23 +11,23 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Hermes](https://img.shields.io/badge/Hermes-dashboard%20plugin-111827)
 
-![Hermes Tool Slimmer dashboard](docs/assets/tool-slimmer-dashboard.png)
+![Hermes Gizmo dashboard](docs/assets/tool-slimmer-dashboard.png)
 
-Hermes Tool Slimmer reduces repeated tool-schema overhead by selecting the smallest useful tool set for a turn. It builds an indexable corpus from Hermes tool schemas, ranks candidate tools with local BM25 plus explicit boosts, and fails open to the original schema list when anything goes wrong.
+Hermes Gizmo reduces repeated tool-schema overhead by selecting the smallest useful tool set for a turn. It builds an indexable corpus from Hermes tool schemas, ranks candidate tools with local BM25 plus explicit boosts, and fails open to the original schema list when anything goes wrong.
 
 ## Honest Compatibility Note
 
 Recent Hermes Agent builds include a native progressive tool loader that exposes `tool_search`, `tool_describe`, and `tool_call` when MCP/plugin tools cross Hermes' own schema budget threshold.
 
-That native Hermes feature is probably the better default for very large MCP/plugin catalogs because it lives in Hermes core and can lazily reach deferred tools. Tool Slimmer is still useful for deterministic one-pass slimming, dashboard visibility, counters, diagnostics, config profiles, evals, and installs where Hermes native Tool Search is unavailable or does not activate.
+That native Hermes feature is probably the better default for very large MCP/plugin catalogs because it lives in Hermes core and can lazily reach deferred tools. Hermes Gizmo is still useful for deterministic one-pass slimming, dashboard visibility, counters, diagnostics, config profiles, evals, and installs where Hermes native Tool Search is unavailable or does not activate.
 
-Tool Slimmer detects Hermes' native bridge and will not double-slim those requests. In that case Hermes keeps control of lazy loading, while Tool Slimmer keeps the dashboard, diagnostics, counters, advisor, and local ranking/eval tools useful.
+Hermes Gizmo detects Hermes' native bridge and will not double-slim those requests. In that case Hermes keeps control of lazy loading, while Hermes Gizmo keeps the dashboard, diagnostics, counters, advisor, and local ranking/eval tools useful.
 
-Do not run Tool Slimmer `two_pass` mode on top of Hermes native Tool Search unless you are intentionally testing. If you want Tool Slimmer to be the active selector instead, disable Hermes native Tool Search in Hermes config first; otherwise the safe default is to let Hermes' built-in bridge handle the request.
+Do not run Hermes Gizmo `two_pass` mode on top of Hermes native Tool Search unless you are intentionally testing. If you want Hermes Gizmo to be the active selector instead, disable Hermes native Tool Search in Hermes config first; otherwise the safe default is to let Hermes' built-in bridge handle the request.
 
 ## Support
 
-For Tool Slimmer install bugs, dashboard issues, ranking misses, or configuration questions, please open an issue at [alias8818/hermes-tool-slimmer](https://github.com/alias8818/hermes-tool-slimmer/issues) instead of posting inside unrelated Hermes Agent issue threads. You can also reach Aliasocracy on Discord at `Aliasocracy#1439`; mention Hermes Tool Slimmer in the message so it is clear the contact is about this project.
+For Hermes Gizmo install bugs, dashboard issues, ranking misses, or configuration questions, please open an issue at [alias8818/hermes-tool-slimmer](https://github.com/alias8818/hermes-tool-slimmer/issues) instead of posting inside unrelated Hermes Agent issue threads. You can also reach Aliasocracy on Discord at `Aliasocracy#1439`; mention Hermes Gizmo in the message so it is clear the contact is about this project.
 
 ## Why
 
@@ -39,7 +39,7 @@ Tool slimming is only a schema-selection optimization. It must not bypass Hermes
 
 The dashboard reports **estimated schema tokens saved**, not guaranteed billable-token savings. The estimate is computed from serialized tool-schema JSON bytes divided by 4 before and after selection. Provider tokenizers, prompt formatting, cache behavior, system prompts, conversation history, and model-specific tool serialization can make actual input-token and billing deltas differ.
 
-The metric is still useful because it measures the repeated tool-catalog payload that Tool Slimmer removes from each request. Treat it as a consistent operational estimate for schema overhead, not as an invoice-grade accounting number.
+The metric is still useful because it measures the repeated tool-catalog payload that Hermes Gizmo removes from each request. Treat it as a consistent operational estimate for schema overhead, not as an invoice-grade accounting number.
 
 Dashboard headline totals count real Hermes session events by default. Probe events without a `session_id` are excluded from headline savings and remain available through the dashboard API's `all_summary` field for audits.
 
@@ -83,7 +83,7 @@ For the full upstream install guide (dashboard, script installer, etc.), see the
 
 ### Upstream install reference
 
-Hermes Tool Slimmer v0.4.0+ is the supported line for Hermes Agent v0.14.0. Older Tool Slimmer releases can load as dashboard/diagnostic plugins on v0.14.0, but they do not provide active schema slimming because Hermes moved the request construction path.
+Hermes Gizmo v0.4.0+ is the supported line for Hermes Agent v0.14.0. Older Hermes Gizmo releases can load as dashboard/diagnostic plugins on v0.14.0, but they do not provide active schema slimming because Hermes moved the request construction path.
 
 On Hermes builds with dashboard plugin repair support, you can install from the dashboard **Plugins** page by pasting:
 
@@ -138,7 +138,7 @@ When updating Hermes later, use the bundled update-and-repair helper:
 scripts/update-hermes-and-repair-tool-slimmer.sh
 ```
 
-It runs `hermes update --yes` so Hermes does not wait at the local-change restore prompt, keeps Hermes' normal backup behavior by default, reapplies the Tool Slimmer core hook if the update changed Hermes internals, restarts services, and finishes with the same doctor report.
+It runs `hermes update --yes` so Hermes does not wait at the local-change restore prompt, keeps Hermes' normal backup behavior by default, reapplies the Hermes Gizmo core hook if the update changed Hermes internals, restarts services, and finishes with the same doctor report.
 
 For hands-off reboot recovery, enable the optional self-heal service:
 
@@ -146,7 +146,7 @@ For hands-off reboot recovery, enable the optional self-heal service:
 scripts/self-heal-tool-slimmer.sh --install-systemd
 ```
 
-On login/boot it runs `doctor`; if Tool Slimmer is enabled but the selector hook is missing, it reruns the local repair installer and restarts only active Hermes services. It does not run `git pull`, `hermes update`, or change config.
+On login/boot it runs `doctor`; if Hermes Gizmo is enabled but the selector hook is missing, it reruns the local repair installer and restarts only active Hermes services. It does not run `git pull`, `hermes update`, or change config.
 
 If an agent or hosted approval layer blocks direct script execution, run the same installer from a normal terminal, or ask the agent to request approval for this exact command after the repo is downloaded:
 
@@ -154,7 +154,7 @@ If an agent or hosted approval layer blocks direct script execution, run the sam
 bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
 ```
 
-If the repo was unpacked somewhere else, replace `$HOME/hermes-tool-slimmer` with that directory. Avoid running installer scripts from a predictable shared `/tmp` checkout. A block at this step means the environment denied running the script; it does not mean Hermes config or Tool Slimmer source is broken.
+If the repo was unpacked somewhere else, replace `$HOME/hermes-tool-slimmer` with that directory. Avoid running installer scripts from a predictable shared `/tmp` checkout. A block at this step means the environment denied running the script; it does not mean Hermes config or Hermes Gizmo source is broken.
 
 If the machine has multiple `hermes` launchers, use the Hermes venv launcher:
 
@@ -167,7 +167,7 @@ This avoids installing the package into one Python environment while running Her
 If Hermes Agent is doing the install for you, give it this instruction:
 
 ```text
-Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
+Install Hermes Gizmo from https://github.com/alias8818/hermes-tool-slimmer.
 Use $HOME/hermes-tool-slimmer as the checkout path. If it already exists and is a git checkout, run git pull --ff-only there first. If it does not exist, clone the repo there.
 Do not use an old /tmp/hermes-tool-slimmer checkout.
 Then run:
@@ -306,7 +306,7 @@ If none exists, active schema slimming requires the installer/core patch to add 
 ## Safety model
 
 - `always_include` tools are selected first when present and not already disabled by Hermes.
-- `always_exclude` is a user-facing alias for `disabled_tools`. Use it when a tool is too noisy for a deployment and should only appear through Hermes outside Tool Slimmer's ranked set.
+- `always_exclude` is a user-facing alias for `disabled_tools`. Use it when a tool is too noisy for a deployment and should only appear through Hermes outside Hermes Gizmo's ranked set.
 - `tool_slimmer_request_full_tools` is always kept available when Hermes has registered it. If a skill or task needs a hidden tool, the model can call it to make the next provider request use the full schema list instead of inventing a substitute workflow.
 - `top_k` applies after `always_include`; always-included tools do not count against the `top_k` budget. `top_k: 0` is treated as an explicit request to select no ranked tools, so it does not fail open to the full catalog.
 - `disabled_tools`, `disabled_toolsets`, `include_mcp_tools`, and `include_native_tools` are respected before ranking.

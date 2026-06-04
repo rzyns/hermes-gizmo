@@ -1,7 +1,7 @@
 {
   "name": "tool-slimmer",
-  "label": "Tool Slimmer",
-  "description": "Show Tool Slimmer selection activity and estimated schema token savings.",
+  "label": "Hermes Gizmo",
+  "description": "Show Hermes Gizmo selection activity and estimated schema token savings.",
   "icon": "Scissors",
   "version": "0.6.4",
   "tab": {

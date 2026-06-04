@@ -335,9 +335,12 @@ def apply_recommended_config(
         enabled = []
     if "tool-slimmer" not in enabled:
         enabled.append("tool-slimmer")
+    if "gizmo" not in enabled:
+        enabled.append("gizmo")
     plugins["enabled"] = enabled
     data["plugins"] = plugins
     data["tool_slimmer"] = payload
+    data["gizmo"] = payload
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(dump_yaml(data))

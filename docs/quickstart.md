@@ -1,6 +1,6 @@
 # Quickstart — Hermes Gizmo Fork
 
-This is the quickstart for the **Hermes Gizmo fork** of Tool Slimmer. For upstream install (dashboard, script installer), see the original quickstart and README.
+This is the quickstart for the **Hermes Gizmo fork** of Hermes Gizmo. For upstream install (dashboard, script installer), see the original quickstart and README.
 
 ## Prerequisites
 
@@ -32,9 +32,9 @@ If it finishes successfully, run:
 hermes tool-slimmer doctor
 ```
 
-All checks should pass. If the dashboard is running, the Tool Slimmer tab should appear after the dashboard service restarts.
+All checks should pass. If the dashboard is running, the Hermes Gizmo tab should appear after the dashboard service restarts.
 
-### Updating Tool Slimmer Later
+### Updating Hermes Gizmo Later
 
 The installer installs the version in the local checkout you run it from. If an agent previously downloaded an old copy into `/tmp/hermes-tool-slimmer`, rerunning that old checkout will reinstall the old version.
 
@@ -54,7 +54,7 @@ HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 ```
 
-If the Hermes dashboard **Plugins** page shows Tool Slimmer as `Source: git`, use the dashboard **Git pull** / **Update** action, then restart the gateway. If it shows `Source: user`, use the terminal update path above.
+If the Hermes dashboard **Plugins** page shows Hermes Gizmo as `Source: git`, use the dashboard **Git pull** / **Update** action, then restart the gateway. If it shows `Source: user`, use the terminal update path above.
 
 ### Updating Hermes Later
 
@@ -64,7 +64,7 @@ Use the bundled helper when Hermes releases a new version:
 scripts/update-hermes-and-repair-tool-slimmer.sh
 ```
 
-This runs `hermes update --yes`, which answers Hermes' local-change restore prompt automatically. It keeps Hermes' normal backup behavior by default, then reruns the Tool Slimmer repair installer so the selector hook is reapplied if Hermes changed its request path. Pass `--no-backup` only if you intentionally want to skip Hermes' pre-update backup.
+This runs `hermes update --yes`, which answers Hermes' local-change restore prompt automatically. It keeps Hermes' normal backup behavior by default, then reruns the Hermes Gizmo repair installer so the selector hook is reapplied if Hermes changed its request path. Pass `--no-backup` only if you intentionally want to skip Hermes' pre-update backup.
 
 For automatic repair after future reboots or Hermes updates, enable the optional user service:
 
@@ -72,7 +72,7 @@ For automatic repair after future reboots or Hermes updates, enable the optional
 scripts/self-heal-tool-slimmer.sh --install-systemd
 ```
 
-The service is intentionally narrow: it runs `doctor`, repairs only when Tool Slimmer is enabled and the core selector hook is missing, does not run network updates, and restarts only active Hermes services after a repair.
+The service is intentionally narrow: it runs `doctor`, repairs only when Hermes Gizmo is enabled and the core selector hook is missing, does not run network updates, and restarts only active Hermes services after a repair.
 
 ### If script execution is blocked
 
@@ -99,7 +99,7 @@ If the approval layer asks what this command does, the answer is: installs the P
 Give Hermes Agent this prompt:
 
 ```text
-Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
+Install Hermes Gizmo from https://github.com/alias8818/hermes-tool-slimmer.
 Use $HOME/hermes-tool-slimmer as the checkout path.
 If $HOME/hermes-tool-slimmer already exists and is a git checkout, run git pull --ff-only there first.
 If it does not exist, clone https://github.com/alias8818/hermes-tool-slimmer.git there.
@@ -198,6 +198,6 @@ For a full mode comparison (keyword vs hybrid vs semantic_hybrid), see [`docs/gi
 - No live default Hermes plugin install/enablement.
 - No gateway restart unless explicitly approved.
 - No provider credential changes.
-- No destructive mutation of existing Tool Slimmer/Hermes installs.
+- No destructive mutation of existing Hermes Gizmo/Hermes installs.
 
 See [`docs/gizmo-compatibility.md`](docs/gizmo-compatibility.md) for the full compatibility guide.

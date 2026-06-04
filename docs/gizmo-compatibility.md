@@ -12,7 +12,7 @@
 
 ## Selector Hook Contract
 
-Hermes Gizmo uses the same selector hook surface as upstream Tool Slimmer. The `select_tool_schemas` callback is injected between `pre_llm_call` and provider request construction.
+Hermes Gizmo uses the same selector hook surface as upstream Hermes Gizmo. The `select_tool_schemas` callback is injected between `pre_llm_call` and provider request construction.
 
 ### Registration Surface
 
@@ -113,7 +113,7 @@ The following actions are **not authorized** for the Gizmo fork without separate
 - Installing/enabling the plugin on the default Hermes profile
 - Restarting the Hermes gateway in a shared environment
 - Changing provider credentials or API keys
-- Destructive mutation of existing Tool Slimmer or Hermes core installs
+- Destructive mutation of existing Hermes Gizmo or Hermes core installs
 - Running the generic hidden-tool broker (`--hidden-tool` execution) unless separately approved
 
 Violating any of these may corrupt shared environments or expose experimental changes to other profiles.

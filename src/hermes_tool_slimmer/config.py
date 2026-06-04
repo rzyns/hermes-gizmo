@@ -336,7 +336,13 @@ def load_config(path: str | Path | None = None, *, strict: bool = False) -> Tool
         if strict:
             raise ValueError(f"tool_slimmer config must be a mapping: {target}")
         return ToolSlimmerConfig()
-    section = data.get("tool_slimmer", data if "mode" in data else {})
+    # Accept either 'tool_slimmer' or 'gizmo' config section for soft rename compatibility
+    for key in ("tool_slimmer", "gizmo"):
+        if key in data:
+            section = data[key]
+            break
+    else:
+        section = data if "mode" in data else {}
     if not isinstance(section, dict):
         if strict:
             raise ValueError(f"tool_slimmer section must be a mapping: {target}")

@@ -6,11 +6,17 @@ provides_tools:
   - tool_slimmer_status
   - tool_slimmer_request_full_tools
   - tool_slimmer_hydrate_tools
+  - gizmo_select
+  - gizmo_status
+  - gizmo_request_full_tools
+  - gizmo_hydrate_tools
 provides_hooks:
   - pre_llm_call
 optional_hooks:
   - select_tool_schemas
 provides_commands:
   - tool-slimmer
+  - gizmo
 provides_cli:
   - tool-slimmer
+  - gizmo

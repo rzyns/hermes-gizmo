@@ -1,0 +1,1 @@
+install-hermes-tool-slimmer.sh

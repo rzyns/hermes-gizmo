@@ -1,6 +1,6 @@
-# Contributing to Hermes Tool Slimmer
+# Contributing to Hermes Gizmo
 
-Thanks for helping improve Hermes Tool Slimmer. This project is intentionally small, deterministic, and fail-open because it influences which tool schemas Hermes sends to model providers.
+Thanks for helping improve Hermes Gizmo. This project is intentionally small, deterministic, and fail-open because it influences which tool schemas Hermes sends to model providers.
 
 ## Development setup
 

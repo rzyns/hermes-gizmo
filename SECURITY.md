@@ -1,6 +1,6 @@
 # Security Policy
 
-Hermes Tool Slimmer changes which tool schemas are presented to the model. It does **not** execute tools, grant approvals, bypass Hermes permission checks, or change provider credentials.
+Hermes Gizmo changes which tool schemas are presented to the model. It does **not** execute tools, grant approvals, bypass Hermes permission checks, or change provider credentials.
 
 ## Supported versions
 
