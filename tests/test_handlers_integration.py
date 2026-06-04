@@ -213,6 +213,35 @@ def test_tool_slimmer_select_prefers_runtime_live_schemas_before_snapshot(monkey
     assert result["selected"] == ["runtime_tool"]
 
 
+def test_select_tool_schemas_injects_recovery_tools_for_acp_filtered_catalog(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    schemas = [
+        {"name": "terminal", "description": "Run commands"},
+        {"name": "read_file", "description": "Read files"},
+        {"name": "write_file", "description": "Write files"},
+        {"name": "patch", "description": "Patch files"},
+        {"name": "search_files", "description": "Search files"},
+    ]
+    cfg = ToolSlimmerConfig(dry_run=False, top_k=0)
+
+    selected = select_tool_schemas_callback(
+        "hello",
+        [],
+        schemas,
+        "model",
+        "acp",
+        session_id="acp-session",
+        config=cfg,
+    )
+
+    names = _tool_names(selected)
+    assert "tool_slimmer_request_full_tools" in names
+    assert "tool_slimmer_tool_search" in names
+    assert "tool_slimmer_tool_details" in names
+    assert "tool_slimmer_loaded_tools" in names
+    assert "tool_slimmer_hydrate_tools" in names
+
+
 def test_cli_tool_names_tolerates_null_function_wrapper():
     assert _tool_names([{"function": None}]) == {""}
 

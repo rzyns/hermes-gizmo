@@ -119,7 +119,8 @@ class ToolSlimmerConfig:
     def for_context(self, *, platform: str | None = None, profile: str | None = None) -> "ToolSlimmerConfig":
         """Return this config with default and platform profile overlays applied."""
         names = ["default"]
-        resolved = _profile_name(profile or platform)
+        requested = _normalize_profile_key(profile or platform)
+        resolved = requested if requested in self.profiles else _profile_name(requested)
         if resolved and resolved != "default":
             names.append(resolved)
         overlays = [self.profiles[name] for name in names if name in self.profiles]
@@ -231,14 +232,20 @@ def _normalize_profiles(value: Any) -> dict[str, dict[str, Any]]:
                 set(),
                 _TWO_PASS_BOOL_FIELDS,
             )
-        profiles[_profile_name(str(name)) or str(name)] = normalized
+        profiles[_normalize_profile_key(str(name)) or str(name)] = normalized
     return profiles
 
 
-def _profile_name(value: str | None) -> str | None:
+def _normalize_profile_key(value: str | None) -> str | None:
     if not value:
         return None
-    normalized = str(value).strip().lower().replace("-", "_")
+    return str(value).strip().lower().replace("-", "_")
+
+
+def _profile_name(value: str | None) -> str | None:
+    normalized = _normalize_profile_key(value)
+    if not normalized:
+        return None
     return _PROFILE_ALIASES.get(normalized, normalized)
 
 

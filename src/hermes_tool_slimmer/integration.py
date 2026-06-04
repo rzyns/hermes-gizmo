@@ -14,6 +14,13 @@ from .index_store import IndexStore
 from .metrics import record_decision, reduction_metrics
 from .native import native_tool_search_active, native_tool_search_bridge_names
 from .policy import eligible_schemas
+from .schemas import (
+    HYDRATE_TOOLS_SCHEMA,
+    LOADED_TOOLS_SCHEMA,
+    REQUEST_FULL_TOOLS_SCHEMA,
+    TOOL_DETAILS_SCHEMA,
+    TOOL_SEARCH_SCHEMA,
+)
 from .selector import ToolSelector
 from .session_tools import SessionLoadedState
 from .tools import FULL_TOOLS_REQUEST_MARKER
@@ -90,6 +97,35 @@ def _schema_by_name(schemas: list[Schema]) -> dict[str, Schema]:
         if name and name not in out:
             out[name] = schema
     return out
+
+
+RECOVERY_TOOL_SCHEMAS: tuple[Schema, ...] = (
+    REQUEST_FULL_TOOLS_SCHEMA,
+    TOOL_SEARCH_SCHEMA,
+    TOOL_DETAILS_SCHEMA,
+    LOADED_TOOLS_SCHEMA,
+    HYDRATE_TOOLS_SCHEMA,
+)
+
+
+def _ensure_recovery_tool_schemas(schemas: list[Schema]) -> tuple[list[Schema], list[str]]:
+    """Append Tool Slimmer recovery schemas when upstream toolset filtering hid them.
+
+    ACP and other restricted toolset contexts can invoke this selector hook with
+    a catalog that excludes plugin-registered Tool Slimmer tools. Without these
+    schemas, active slimming can trap the model in a reduced tool set with no
+    recovery/discovery surface. The registry handlers remain globally
+    dispatchable; this only restores their request-local model schemas.
+    """
+    by_name = _schema_by_name(schemas)
+    augmented = list(schemas)
+    injected: list[str] = []
+    for schema in RECOVERY_TOOL_SCHEMAS:
+        name = tool_name(schema)
+        if name and name not in by_name:
+            augmented.append(dict(schema))
+            injected.append(name)
+    return augmented, injected
 
 
 def _always_include_schemas(schemas_by_name: dict[str, Schema], cfg: ToolSlimmerConfig) -> tuple[list[Schema], list[str]]:
@@ -262,6 +298,10 @@ def select_tool_schemas_callback(
         return None
     try:
         started = perf_counter()
+        upstream_schema_count = len(schemas)
+        recovery_meta_injected: list[str] = []
+        if str(platform or "").strip().lower() == "acp":
+            schemas, recovery_meta_injected = _ensure_recovery_tool_schemas(schemas)
         _sync_live_index(
             schemas,
             cfg.min_total_tools,
@@ -271,6 +311,8 @@ def select_tool_schemas_callback(
                 "platform": platform,
                 "session_id": session_id,
                 "schema_count": len(schemas),
+                "upstream_schema_count": upstream_schema_count,
+                "recovery_meta_injected": recovery_meta_injected,
             },
         )
         if native_tool_search_active(schemas):
@@ -438,6 +480,9 @@ def select_tool_schemas_callback(
             metrics["session_loaded_injected"] = injected_names
         if result.metadata:
             metrics.update(result.metadata)
+        if recovery_meta_injected:
+            metrics["recovery_meta_injected"] = recovery_meta_injected
+            metrics["upstream_schema_count"] = upstream_schema_count
         metrics["selection_ms"] = round((perf_counter() - started) * 1000, 3)
         metrics["selected_scores"] = {name: result.score_details.get(name, {}) for name in result.selected_names}
         metrics["top_candidates"] = [

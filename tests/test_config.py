@@ -99,6 +99,33 @@ def test_config_profiles_overlay_by_platform():
     assert cli.top_k == 9
 
 
+def test_exact_tui_profile_does_not_apply_to_cli_platform():
+    cfg = ToolSlimmerConfig.from_mapping(
+        {
+            "dry_run": True,
+            "profiles": {
+                "tui": {"dry_run": False},
+            },
+        }
+    )
+
+    assert cfg.for_context(platform="tui").dry_run is False
+    assert cfg.for_context(platform="cli").dry_run is True
+
+
+def test_tui_platform_falls_back_to_cli_profile_when_tui_profile_absent():
+    cfg = ToolSlimmerConfig.from_mapping(
+        {
+            "dry_run": True,
+            "profiles": {
+                "cli": {"dry_run": False},
+            },
+        }
+    )
+
+    assert cfg.for_context(platform="tui").dry_run is False
+
+
 def test_profile_overlay_merges_disabled_policy():
     cfg = ToolSlimmerConfig.from_mapping(
         {
