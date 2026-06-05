@@ -69,6 +69,10 @@ def test_state_migration_plan_reports_legacy_state_and_config_actions_without_mu
     assert "copy_legacy_state_root" in action_ids
     assert "add_gizmo_config_section" in action_ids
     assert "enable_gizmo_plugin_alias" in action_ids
+    enable_action = next(item for item in report["planned_actions"] if item["id"] == "enable_gizmo_plugin_alias")
+    assert enable_action["requires_review"] is True
+    assert enable_action["reason"] == "dashboard_plugin_alias_overlap"
+    assert any(warning["id"] == "dashboard_plugin_alias_overlap" for warning in report["warnings"])
     assert report["config"]["sections"] == {"tool_slimmer": True, "gizmo": False}
     assert report["config"]["plugins_enabled"] == {"tool-slimmer": True, "gizmo": False}
     assert not (tmp_path / "gizmo").exists()

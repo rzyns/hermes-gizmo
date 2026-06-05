@@ -56,6 +56,17 @@ def plan_state_migration(
             }
         )
 
+    dashboard_alias_overlap = config["plugins_enabled"]["tool-slimmer"]
+    if dashboard_alias_overlap:
+        warnings.append(
+            {
+                "id": "dashboard_plugin_alias_overlap",
+                "message": "The legacy tool-slimmer dashboard plugin is enabled. Enabling the canonical gizmo dashboard plugin alongside it may mount overlapping dashboard/API surfaces; review the dashboard routing plan before applying.",
+                "legacy_plugin": "tool-slimmer",
+                "canonical_plugin": "gizmo",
+            }
+        )
+
     if legacy_root.exists():
         planned_actions.append(
             {
@@ -88,7 +99,8 @@ def plan_state_migration(
                     "path": str(cfg_path),
                     "section": "plugins.enabled",
                     "value": "gizmo",
-                    "requires_review": False,
+                    "requires_review": dashboard_alias_overlap,
+                    "reason": "dashboard_plugin_alias_overlap" if dashboard_alias_overlap else "canonical_plugin_alias_missing",
                 }
             )
 
