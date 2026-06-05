@@ -23,8 +23,6 @@ include = [
 artifacts = [
   "/dashboard/dist/index.js",
   "/dashboard/dist/style.css",
-  "/dashboard-plugin/tool-slimmer/dashboard/dist/index.js",
-  "/dashboard-plugin/tool-slimmer/dashboard/dist/style.css",
 ]
 
 [project]
