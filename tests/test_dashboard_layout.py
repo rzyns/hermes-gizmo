@@ -91,7 +91,7 @@ class TestDashboardAssetLayout:
         assert legacy["tab"]["path"] == "/tool-slimmer"
         assert canonical["name"] == "gizmo"
         assert canonical["tab"]["path"] == "/gizmo"
-        assert canonical["label"] == legacy["label"] == "Hermes Gizmo"
+        assert canonical["label"] == legacy["label"] == "Gizmo"
         assert canonical["entry"] == legacy["entry"] == "dist/index.js"
         assert canonical["css"] == legacy["css"] == "dist/style.css"
         assert canonical["api"] == legacy["api"] == "plugin_api.py"
