@@ -23,6 +23,11 @@ __version__ = "0.6.4"
 
 def register(ctx):
     """Register Hermes Gizmo plugin (formerly Tool Slimmer)."""
+    marker = "_hermes_gizmo_registered"
+    if getattr(ctx, marker, False) is True:
+        return
+    setattr(ctx, marker, True)
+
     from .cli import handle_cli, setup_argparse
     from .commands import handle_slash_command
 

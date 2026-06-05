@@ -68,9 +68,11 @@ Issues = "https://github.com/alias8818/hermes-tool-slimmer/issues"
 
 [project.entry-points."hermes_agent.plugins"]
 tool-slimmer = "hermes_tool_slimmer"
+gizmo = "hermes_gizmo"
 
 [project.scripts]
 hermes-tool-slimmer = "hermes_tool_slimmer.cli:main"
+hermes-gizmo = "hermes_gizmo.cli:main"
 
 [tool.ruff]
 line-length = 100

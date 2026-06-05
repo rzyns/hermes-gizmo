@@ -57,3 +57,31 @@ def test_wheel_configuration_includes_canonical_and_legacy_namespaces() -> None:
     assert "src/hermes_tool_slimmer" in packages
     assert "/src/hermes_gizmo" in include
     assert "/src/hermes_tool_slimmer" in include
+
+
+def test_pyproject_declares_canonical_and_legacy_plugin_entrypoints_and_scripts() -> None:
+    """Package metadata should expose canonical Gizmo names without dropping legacy names."""
+    repo_root = Path(__file__).resolve().parents[1]
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text())
+    plugin_entrypoints = pyproject["project"]["entry-points"]["hermes_agent.plugins"]
+    scripts = pyproject["project"]["scripts"]
+
+    assert plugin_entrypoints["tool-slimmer"] == "hermes_tool_slimmer"
+    assert plugin_entrypoints["gizmo"] == "hermes_gizmo"
+    assert scripts["hermes-tool-slimmer"] == "hermes_tool_slimmer.cli:main"
+    assert scripts["hermes-gizmo"] == "hermes_gizmo.cli:main"
+
+
+def test_register_is_idempotent_when_legacy_and_canonical_entrypoints_both_load() -> None:
+    """Mixed old/new plugin enablement must not double-register tools or commands."""
+    from unittest.mock import MagicMock
+
+    from hermes_gizmo import register
+
+    ctx = MagicMock()
+    register(ctx)
+    register(ctx)
+
+    assert ctx.register_tool.call_count == 14
+    assert ctx.register_command.call_count == 2
+    assert ctx.register_cli_command.call_count == 2
