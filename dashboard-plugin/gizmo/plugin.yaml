@@ -1,0 +1,28 @@
+name: gizmo
+version: 0.6.4
+description: Reduce Hermes tool-schema overhead and show selector savings in the dashboard.
+provides_tools:
+  - tool_slimmer_select
+  - tool_slimmer_status
+  - tool_slimmer_request_full_tools
+  - tool_slimmer_hydrate_tools
+  - tool_slimmer_loaded_tools
+  - tool_slimmer_tool_search
+  - tool_slimmer_tool_details
+  - gizmo_select
+  - gizmo_status
+  - gizmo_request_full_tools
+  - gizmo_hydrate_tools
+  - gizmo_loaded_tools
+  - gizmo_tool_details
+  - gizmo_tool_search
+provides_hooks:
+  - pre_llm_call
+optional_hooks:
+  - select_tool_schemas
+provides_commands:
+  - tool-slimmer
+  - gizmo
+provides_cli:
+  - tool-slimmer
+  - gizmo
