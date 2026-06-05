@@ -543,6 +543,10 @@ def pre_llm_diagnostic_hook(**kwargs: Any) -> dict[str, str] | None:
     }
 
 
+SESSION_BRIDGE_TOOL_DETAILS_NAMES = {"tool_slimmer_tool_details", "gizmo_tool_details"}
+SESSION_BRIDGE_LOADED_TOOLS_NAMES = {"tool_slimmer_loaded_tools", "gizmo_loaded_tools"}
+
+
 def _sync_session_loaded_from_tool_result(
     *,
     tool_name: str,
@@ -550,14 +554,15 @@ def _sync_session_loaded_from_tool_result(
     result: Any,
     session_id: str | None,
 ) -> None:
-    """Bridge Tool Slimmer load/unload tool calls into the active Hermes session.
+    """Bridge progressive load/unload tool calls into the active Hermes session.
 
     Hermes core passes session_id to hooks, but not to registry.dispatch handlers.
-    The Tool Slimmer details handler therefore updates the anonymous registry during
-    the tool call itself. This hook mirrors successful load/unload actions into the
-    real session so the next select_tool_schemas hook can inject loaded tools.
+    The details handler therefore updates the anonymous registry during the tool
+    call itself. This hook mirrors successful load/unload actions from both the
+    legacy Tool Slimmer name and the Gizmo alias into the real session so the next
+    select_tool_schemas hook can inject loaded tools.
     """
-    if tool_name != "tool_slimmer_tool_details" or not session_id:
+    if tool_name not in SESSION_BRIDGE_TOOL_DETAILS_NAMES or not session_id:
         return
     raw_args = args if isinstance(args, dict) else {}
     try:
@@ -606,7 +611,7 @@ def post_tool_call_session_bridge_hook(**kwargs: Any) -> None:
 
 def transform_loaded_tools_session_bridge_hook(**kwargs: Any) -> str | None:
     """Return loaded-tools diagnostics for the active session when core supplies it."""
-    if kwargs.get("tool_name") != "tool_slimmer_loaded_tools":
+    if kwargs.get("tool_name") not in SESSION_BRIDGE_LOADED_TOOLS_NAMES:
         return None
     session_id = str(kwargs.get("session_id") or "").strip()
     if not session_id:
