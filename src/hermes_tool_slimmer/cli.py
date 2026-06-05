@@ -478,6 +478,7 @@ def setup_argparse(parser: argparse.ArgumentParser) -> None:
     sub.add_parser("privacy")
     diagnostics = sub.add_parser("diagnostics")
     diagnostics.add_argument("--limit", type=int, default=200)
+    sub.add_parser("state-migration-plan", help="Print a read-only Tool Slimmer -> Gizmo state/config migration plan")
     sub.add_parser("recommend-config")
 
 
@@ -501,6 +502,11 @@ def handle_cli(args: argparse.Namespace) -> int:
         return 0
     if args.command == "diagnostics":
         print(json.dumps(diagnostic_report(limit=getattr(args, "limit", 200)), indent=2, sort_keys=True))
+        return 0
+    if args.command == "state-migration-plan":
+        from .state_migration import plan_state_migration
+
+        print(json.dumps(plan_state_migration(config_path=getattr(args, "config", None)), indent=2, sort_keys=True))
         return 0
 
     cfg = load_config(getattr(args, "config", None))
