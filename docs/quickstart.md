@@ -1,12 +1,12 @@
-# Quickstart — Hermes Gizmo Fork
+# Quickstart — Hermes Gizmo
 
-This is the quickstart for the **Hermes Gizmo fork** of Tool Slimmer. For upstream install (dashboard, script installer), see the original quickstart and README.
+Hermes Gizmo is an experimental Hermes Agent plugin based on upstream Hermes Tool Slimmer. This quickstart uses the public Hermes Gizmo checkout while preserving legacy `tool-slimmer` commands and config keys for compatibility.
 
 ## Prerequisites
 
 - Python 3.11+
 - A local checkout of this repo
-- A dedicated Hermes profile (e.g., `hermes-gizmo`) — do not install on the default profile
+- A dedicated Hermes profile for first-time testing, e.g. `hermes-gizmo`
 
 ## 1. Install (Isolated Profile)
 
@@ -17,10 +17,12 @@ export HERMES_PROFILE=hermes-gizmo
 export HERMES_HOME="$HOME/.hermes/profiles/$HERMES_PROFILE"
 ```
 
-Install the package from this local checkout:
+Clone and install the package from a durable local checkout:
 
 ```bash
-cd /home/openclaw/dev/hermes-stuff/plugins/hermes-gizmo
+cd "$HOME"
+git clone https://github.com/rzyns/hermes-gizmo.git
+cd hermes-gizmo
 pip install -e ".[dev]"
 ```
 
@@ -36,21 +38,21 @@ All checks should pass. If the dashboard is running, the Hermes Gizmo tab should
 
 ### Updating Hermes Gizmo Later
 
-The installer installs the version in the local checkout you run it from. If an agent previously downloaded an old copy into `/tmp/hermes-tool-slimmer`, rerunning that old checkout will reinstall the old version.
+The installer installs the version in the local checkout you run it from. If an agent previously downloaded an old copy into `/tmp/hermes-tool-slimmer` or `/tmp/hermes-gizmo`, rerunning that old checkout will reinstall the old version.
 
 Use a durable checkout under your home directory and update it before reinstalling:
 
 ```bash
 cd "$HOME"
-if [ -d "$HOME/hermes-tool-slimmer/.git" ]; then
-  cd "$HOME/hermes-tool-slimmer"
+if [ -d "$HOME/hermes-gizmo/.git" ]; then
+  cd "$HOME/hermes-gizmo"
   git pull --ff-only
 else
-  git clone https://github.com/alias8818/hermes-tool-slimmer.git "$HOME/hermes-tool-slimmer"
-  cd "$HOME/hermes-tool-slimmer"
+  git clone https://github.com/rzyns/hermes-gizmo.git "$HOME/hermes-gizmo"
+  cd "$HOME/hermes-gizmo"
 fi
 
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 ```
 
@@ -61,7 +63,7 @@ If the Hermes dashboard **Plugins** page shows Hermes Gizmo as `Source: git`, us
 Use the bundled helper when Hermes releases a new version:
 
 ```bash
-scripts/update-hermes-and-repair-tool-slimmer.sh
+scripts/update-hermes-and-repair-gizmo.sh
 ```
 
 This runs `hermes update --yes`, which answers Hermes' local-change restore prompt automatically. It keeps Hermes' normal backup behavior by default, then reruns the Hermes Gizmo repair installer so the selector hook is reapplied if Hermes changed its request path. Pass `--no-backup` only if you intentionally want to skip Hermes' pre-update backup.
@@ -69,25 +71,25 @@ This runs `hermes update --yes`, which answers Hermes' local-change restore prom
 For automatic repair after future reboots or Hermes updates, enable the optional user service:
 
 ```bash
-scripts/self-heal-tool-slimmer.sh --install-systemd
+scripts/self-heal-gizmo.sh --install-systemd
 ```
 
 The service is intentionally narrow: it runs `doctor`, repairs only when Hermes Gizmo is enabled and the core selector hook is missing, does not run network updates, and restarts only active Hermes services after a repair.
 
 ### If script execution is blocked
 
-Some hosted agent environments block direct execution of downloaded scripts until the user approves that exact command. If Hermes reports that the repository downloaded correctly but `scripts/install-hermes-tool-slimmer.sh` was blocked, run the installer from a normal terminal or approve this command:
+Some hosted agent environments block direct execution of downloaded scripts until the user approves that exact command. If Hermes reports that the repository downloaded correctly but `scripts/install-hermes-gizmo.sh` was blocked, run the installer from a normal terminal or approve this command:
 
 ```bash
-bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"
 ```
 
-Use the actual unpacked repo path if it is not `$HOME/hermes-tool-slimmer`. Avoid running installer scripts from a predictable shared `/tmp` checkout. This failure mode is an execution approval problem; the remaining install work is still the normal package install, plugin enablement, core patch check, service restart, and doctor report.
+Use the actual unpacked repo path if it is not `$HOME/hermes-gizmo`. Avoid running installer scripts from a predictable shared `/tmp` checkout. This failure mode is an execution approval problem; the remaining install work is still the normal package install, plugin enablement, core patch check, service restart, and doctor report.
 
 If there are multiple `hermes` launchers, prefer the venv launcher:
 
 ```bash
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"
 ```
 
 The source-checkout launcher may use system Python and fail to import packages installed into the Hermes venv.
@@ -99,19 +101,19 @@ If the approval layer asks what this command does, the answer is: installs the P
 Give Hermes Agent this prompt:
 
 ```text
-Install Hermes Gizmo from https://github.com/alias8818/hermes-tool-slimmer.
-Use $HOME/hermes-tool-slimmer as the checkout path.
-If $HOME/hermes-tool-slimmer already exists and is a git checkout, run git pull --ff-only there first.
-If it does not exist, clone https://github.com/alias8818/hermes-tool-slimmer.git there.
-Do not use an old /tmp/hermes-tool-slimmer checkout.
+Install Hermes Gizmo from https://github.com/rzyns/hermes-gizmo.
+Use $HOME/hermes-gizmo as the checkout path.
+If $HOME/hermes-gizmo already exists and is a git checkout, run git pull --ff-only there first.
+If it does not exist, clone https://github.com/rzyns/hermes-gizmo.git there.
+Do not use an old `/tmp/hermes-tool-slimmer` or `/tmp/hermes-gizmo` checkout.
 Then run:
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"
 If the environment asks for approval to run that script, request approval for that exact command.
 Then verify with:
 $HOME/.hermes/hermes-agent/venv/bin/hermes tool-slimmer doctor
 ```
 
-If Hermes Agent says it downloaded or unpacked the repo but installation is not complete, first confirm it used `$HOME/hermes-tool-slimmer` and updated that checkout, then run the `bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"` command above.
+If Hermes Agent says it downloaded or unpacked the repo but installation is not complete, first confirm it used `$HOME/hermes-gizmo` and updated that checkout, then run the `bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"` command above.
 ## 2. Add configuration
 
 Create `$HERMES_HOME/config.yaml`:
@@ -159,7 +161,7 @@ hermes tool-slimmer doctor
 hermes tool-slimmer status
 hermes tool-slimmer privacy
 hermes tool-slimmer diagnostics
-scripts/troubleshoot-hermes-tool-slimmer.sh
+scripts/troubleshoot-hermes-gizmo.sh
 ```
 
 `doctor` reports whether:
@@ -181,7 +183,7 @@ hermes tool-slimmer select "search this repo for MCP registration code" --schema
 
 ## 5. Enable active schema slimming
 
-Set `dry_run: false` only after `doctor` reports a Hermes core selector hook and you have observed satisfactory selections during dry-run. If it warns that `select_tool_schemas` is missing, rerun `scripts/install-hermes-tool-slimmer.sh`; the installer applies the local compatibility patch. Do not paste or manually apply `docs/hermes-core-selector-hook.patch` unless you are developing a Hermes core PR.
+Set `dry_run: false` only after `doctor` reports a Hermes core selector hook and you have observed satisfactory selections during dry-run. If it warns that `select_tool_schemas` is missing, rerun `scripts/install-hermes-gizmo.sh`; the installer applies the local compatibility patch. Do not paste or manually apply `docs/hermes-core-selector-hook.patch` unless you are developing a Hermes core PR.
 
 ## 6. Run the benchmark report
 
@@ -193,9 +195,9 @@ For a full mode comparison (keyword vs hybrid vs semantic_hybrid), see [`docs/gi
 
 ## Non-authorizations
 
-- No upstream PR submission from this fork.
-- No public package publish.
-- No live default Hermes plugin install/enablement.
+- No upstream PR submission to `alias8818/hermes-tool-slimmer` without separate approval.
+- No package-registry publish from these quickstart instructions.
+- No default Hermes profile install/enablement unless explicitly intended.
 - No gateway restart unless explicitly approved.
 - No provider credential changes.
 - No destructive mutation of existing Hermes Gizmo/Hermes installs.

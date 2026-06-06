@@ -2,7 +2,6 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PLUGIN_NAME="tool-slimmer"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 HERMES_BIN_FROM_ENV="${HERMES_BIN:-}"
 HERMES_BIN_EXPLICIT=0

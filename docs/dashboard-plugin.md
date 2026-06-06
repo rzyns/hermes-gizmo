@@ -8,14 +8,14 @@ From a terminal on the Hermes machine:
 
 ```bash
 cd "$HOME"
-git clone https://github.com/alias8818/hermes-tool-slimmer.git
-cd hermes-tool-slimmer
+git clone https://github.com/rzyns/hermes-gizmo.git
+cd hermes-gizmo
 ```
 
 Then run:
 
 ```bash
-scripts/install-hermes-tool-slimmer.sh
+scripts/install-hermes-gizmo.sh
 ```
 
 That script:
@@ -30,7 +30,7 @@ That script:
 If a restricted agent approval layer blocks direct script execution after downloading the repo, approve or run the explicit shell invocation instead:
 
 ```bash
-bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"
 ```
 
 That is the same installer. The block is environmental, not a dashboard plugin failure. Avoid running installer scripts from a predictable shared `/tmp` checkout.
@@ -38,7 +38,7 @@ That is the same installer. The block is environmental, not a dashboard plugin f
 If there are multiple `hermes` binaries, force the venv launcher:
 
 ```bash
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"
 ```
 
 This keeps the plugin install and Hermes CLI command in the same Python environment.
@@ -57,23 +57,23 @@ If Tool Slimmer shows as `Source: user`, update the terminal checkout before rei
 
 ```bash
 cd "$HOME"
-if [ -d "$HOME/hermes-tool-slimmer/.git" ]; then
-  cd "$HOME/hermes-tool-slimmer"
+if [ -d "$HOME/hermes-gizmo/.git" ]; then
+  cd "$HOME/hermes-gizmo"
   git pull --ff-only
 else
-  git clone https://github.com/alias8818/hermes-tool-slimmer.git "$HOME/hermes-tool-slimmer"
-  cd "$HOME/hermes-tool-slimmer"
+  git clone https://github.com/rzyns/hermes-gizmo.git "$HOME/hermes-gizmo"
+  cd "$HOME/hermes-gizmo"
 fi
 
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"
 ```
 
-Do not rerun an old checkout from `/tmp/hermes-tool-slimmer`; the installer will reinstall whatever version is in that folder.
+Do not rerun an old checkout from `/tmp/hermes-tool-slimmer` or `/tmp/hermes-gizmo`; the installer will reinstall whatever version is in that folder.
 
 If you only want a health report:
 
 ```bash
-scripts/troubleshoot-hermes-tool-slimmer.sh
+scripts/troubleshoot-hermes-gizmo.sh
 ```
 
 ## Manual install
@@ -152,7 +152,7 @@ The dashboard also reports average selector overhead in milliseconds, the number
 Run:
 
 ```bash
-scripts/troubleshoot-hermes-tool-slimmer.sh
+scripts/troubleshoot-hermes-gizmo.sh
 ```
 
 The last line is written for operators:

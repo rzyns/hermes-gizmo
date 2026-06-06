@@ -4,18 +4,24 @@ Hermes Gizmo changes which tool schemas are presented to the model. It does **no
 
 ## Supported versions
 
+Hermes Gizmo is currently an alpha/community-preview project. Security fixes are handled on a best-effort basis for the latest released version and current `main` branch. Older release lines are not guaranteed to receive backports unless a maintainer explicitly announces support for that line.
+
 | Version | Supported |
 |---|---|
-| 0.1.x | Yes |
+| Latest release / current `main` | Best effort |
+| Older releases | Not guaranteed |
 
 ## Reporting a vulnerability
 
-Please report security issues privately by opening a GitHub security advisory or contacting the repository owner. Include:
+Please report security issues privately by opening a GitHub Security Advisory for the repository, or by contacting the repository maintainer through a private channel. Do **not** put exploit details, private logs, credentials, or reproduction payloads in a public issue.
+
+Please include:
 
 - affected version or commit
-- reproduction steps
+- Hermes Agent version and provider path, if relevant
+- reproduction steps with secrets removed
 - expected and actual behavior
-- whether the issue can remove safety-critical tools, bypass fail-open behavior, or expose credentials
+- whether the issue can remove safety-critical tools, bypass fail-open behavior, expose credentials, or alter disabled-tool policy
 
 ## Security expectations
 
@@ -23,3 +29,4 @@ Please report security issues privately by opening a GitHub security advisory or
 - Disabled tools and disabled toolsets must never be reintroduced by this plugin.
 - `dry_run` must not alter schemas.
 - Provider-specific Tool Search features must be gated by provider capability, not model-name guesses alone.
+- Diagnostics must avoid raw prompts, environment secret values, and session IDs.

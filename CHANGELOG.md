@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added public open-source maintenance files: support policy, code of conduct, issue templates, and pull request template.
+- Added `NOTICE` with upstream Hermes Tool Slimmer attribution and MIT license-preservation notes.
+
+### Changed
+
+- Updated public docs and package metadata toward the Hermes Gizmo community fork URL while preserving legacy `tool-slimmer` compatibility.
+- Expanded CI/release validation to include mypy, canonical dashboard plugin compilation, package build, wheel asset checks, and temp install smoke.
+
 ## 0.6.4 - 2026-05-30
 
 Installer environment override repair.

@@ -70,7 +70,7 @@ def _stable_hash(text: str, dim: int) -> list[float]:
     """Deterministic fake embedding via SHA-256 hashing."""
     _ensure_numpy()
     raw = hashlib.sha256(text.encode("utf-8")).digest()
-    floats = []
+    floats: list[float] = []
     idx = 0
     while len(floats) < dim:
         chunk = raw[idx % len(raw) : (idx % len(raw)) + 4]
@@ -519,8 +519,8 @@ class ReciprocalRankFusion:
 
         details = {
             "rrf": combined,
-            "bm25_rank": bm25_ranks,
-            "semantic_rank": sem_ranks,
+            "bm25_rank": [float(rank) for rank in bm25_ranks],
+            "semantic_rank": [float(rank) for rank in sem_ranks],
             "cosine_similarity": semantic_scores,
         }
         return combined, details

@@ -17,7 +17,8 @@ for asset in dashboard/dist/index.js dashboard/dist/style.css; do
 done
 
 # Verify the installer references the canonical source
-if grep -q 'DASHBOARD_SRC="\$ROOT_DIR/dashboard"' "$ROOT_DIR/scripts/install-hermes-tool-slimmer.sh"; then
+expected_dashboard_src="DASHBOARD_SRC=\"\$ROOT_DIR/dashboard\""
+if grep -Fq "$expected_dashboard_src" "$ROOT_DIR/scripts/install-hermes-tool-slimmer.sh"; then
   echo "OK  installer references canonical dashboard/dist"
 else
   echo "FAIL installer does not reference canonical dashboard/dist"

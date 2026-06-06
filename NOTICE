@@ -1,0 +1,15 @@
+Hermes Gizmo
+============
+
+Hermes Gizmo is derived from Hermes Tool Slimmer by the Hermes Tool Slimmer
+contributors. The upstream project is available at:
+
+    https://github.com/alias8818/hermes-tool-slimmer
+
+This fork keeps the upstream MIT license. The upstream copyright notice and
+MIT permission notice are preserved in LICENSE and must be included in all
+copies or substantial portions of the software.
+
+Hermes Gizmo adds compatibility aliases, diagnostics, dashboard refinements,
+state-migration planning, and other changes maintained by the Hermes Gizmo
+contributors.

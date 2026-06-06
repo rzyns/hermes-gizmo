@@ -9,7 +9,7 @@ This page is for people who want Tool Slimmer installed and tuned with the fewes
 3. Install from this repo:
 
    ```text
-   alias8818/hermes-tool-slimmer
+   rzyns/hermes-gizmo
    ```
 
 4. Restart Hermes when the dashboard asks.
@@ -25,12 +25,12 @@ The dashboard makes a backup before writing config. The backup path is shown aft
 Paste this prompt into Hermes Agent:
 
 ```text
-Install Hermes Tool Slimmer from https://github.com/alias8818/hermes-tool-slimmer.
+Install Hermes Gizmo from https://github.com/rzyns/hermes-gizmo.
 
 Use the Hermes virtualenv launcher, not a system Python launcher:
-HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-tool-slimmer/scripts/install-hermes-tool-slimmer.sh"
+HERMES_BIN="$HOME/.hermes/hermes-agent/venv/bin/hermes" bash "$HOME/hermes-gizmo/scripts/install-hermes-gizmo.sh"
 
-If the repo is not downloaded yet, clone it into $HOME/hermes-tool-slimmer first. If that directory already exists and is a git checkout, run git pull --ff-only there before installing. Do not use an old /tmp/hermes-tool-slimmer checkout.
+If the repo is not downloaded yet, clone it into $HOME/hermes-gizmo first. If that directory already exists and is a git checkout, run git pull --ff-only there before installing. Do not use an old `/tmp/hermes-tool-slimmer` or `/tmp/hermes-gizmo` checkout.
 If the environment blocks direct script execution, request approval for that exact bash command.
 
 After install:

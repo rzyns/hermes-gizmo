@@ -1,10 +1,10 @@
 # Hermes core integration
 
-Hermes Tool Slimmer needs one upstream integration point before provider request construction. Current Hermes v0.14.0 source inspection found the main schema provider in `model_tools.get_tool_definitions(...)`, plugin hook registration in `hermes_cli.plugins.PluginContext.register_hook(...)`, turn orchestration in `agent/conversation_loop.py`, and provider kwargs construction in `agent/chat_completion_helpers.py`.
+Hermes Gizmo, derived from Hermes Tool Slimmer, needs one upstream integration point before provider request construction. Current Hermes v0.14.0 source inspection found the main schema provider in `model_tools.get_tool_definitions(...)`, plugin hook registration in `hermes_cli.plugins.PluginContext.register_hook(...)`, turn orchestration in `agent/conversation_loop.py`, and provider kwargs construction in `agent/chat_completion_helpers.py`.
 
-Compatibility note: Tool Slimmer v0.4.0+ is the supported line for Hermes Agent v0.14.0 active schema slimming. The installer patcher still carries a fallback for older monolithic `run_agent.py` Hermes cores, but older Tool Slimmer releases should not be used with Hermes v0.14.0.
+Compatibility note: Hermes Gizmo/Tool Slimmer v0.4.0+ is the supported line for Hermes Agent v0.14.0 active schema slimming. The installer patcher still carries a fallback for older monolithic `run_agent.py` Hermes cores, but older Tool Slimmer releases should not be used with Hermes v0.14.0.
 
-`docs/hermes-core-selector-hook.patch` is a minimal upstreamable patch artifact for Hermes core development, not the normal user install path. Normal users should rerun `scripts/install-hermes-tool-slimmer.sh`; the installer detects the local Hermes layout and applies the compatibility patch for released Hermes versions. The patch artifact adds:
+`docs/hermes-core-selector-hook.patch` is a minimal upstreamable patch artifact for Hermes core development, not the normal user install path. Normal users should rerun `scripts/install-hermes-gizmo.sh`; the installer detects the local Hermes layout and applies the compatibility patch for released Hermes versions. The patch artifact adds:
 
 - `select_tool_schemas` to `VALID_HOOKS`.
 - One turn-level invocation after `pre_llm_call` and before provider request construction.
@@ -16,7 +16,7 @@ Compatibility note: Tool Slimmer v0.4.0+ is the supported line for Hermes Agent 
 Validation evidence captured while preparing the patch artifact:
 
 ```bash
-git -C /tmp/hermes-agent-core apply /path/to/hermes-tool-slimmer/docs/hermes-core-selector-hook.patch
+git -C /tmp/hermes-agent-core apply /path/to/hermes-gizmo/docs/hermes-core-selector-hook.patch
 python3 -m py_compile hermes_cli/plugins.py agent/conversation_loop.py tests/hermes_cli/test_tool_schema_selector_hook.py
 PYTHONPATH=/tmp/hermes-agent-core pytest -q -o addopts='' tests/hermes_cli/test_tool_schema_selector_hook.py
 # 4 passed
@@ -24,7 +24,7 @@ git -C /tmp/hermes-agent-core diff --check
 # clean
 ```
 
-MCP metadata evidence from current Hermes source: MCP tools are registered in `tools/mcp_tool.py` with `toolset_name = f"mcp-{name}"`, converted schema names use `mcp_{server}_{tool}`, and registry collision logic treats `existing_toolset.startswith("mcp-")` as MCP-origin. Hermes Tool Slimmer therefore classifies `mcp`, `mcp_tools`, `mcp:`, `mcp-`, `mcp_server`, and `mcp_` name-prefix shapes as MCP.
+MCP metadata evidence from current Hermes source: MCP tools are registered in `tools/mcp_tool.py` with `toolset_name = f"mcp-{name}"`, converted schema names use `mcp_{server}_{tool}`, and registry collision logic treats `existing_toolset.startswith("mcp-")` as MCP-origin. Hermes Gizmo therefore classifies `mcp`, `mcp_tools`, `mcp:`, `mcp-`, `mcp_server`, and `mcp_` name-prefix shapes as MCP.
 
 Preferred callback contract:
 

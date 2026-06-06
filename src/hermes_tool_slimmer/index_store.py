@@ -97,7 +97,8 @@ class IndexStore:
                 continue
             if not isinstance(payload, dict):
                 continue
-            context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+            raw_context = payload.get("context")
+            context: dict[str, Any] = raw_context if isinstance(raw_context, dict) else {}
             platform = str(context.get("platform") or label)
             key = (label, platform)
             if key in seen:

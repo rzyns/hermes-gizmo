@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from typing import Any, cast
 from tempfile import TemporaryDirectory
 
 
@@ -124,7 +125,8 @@ class TestIsDisabledOrExcluded:
 
 class TestToolSearch:
     def test_model_facing_schema_does_not_accept_fabricated_schemas(self) -> None:
-        properties = TOOL_SEARCH_SCHEMA["parameters"]["properties"]
+        parameters = cast(dict[str, Any], TOOL_SEARCH_SCHEMA["parameters"])
+        properties = cast(dict[str, Any], parameters["properties"])
         assert "schemas" not in properties
 
     def test_search_without_schemas(self) -> None:
@@ -240,7 +242,8 @@ class TestToolSearch:
 
 class TestToolDetails:
     def test_model_facing_schema_does_not_accept_fabricated_schemas(self) -> None:
-        properties = TOOL_DETAILS_SCHEMA["parameters"]["properties"]
+        parameters = cast(dict[str, Any], TOOL_DETAILS_SCHEMA["parameters"])
+        properties = cast(dict[str, Any], parameters["properties"])
         assert "schemas" not in properties
 
     def test_details_missing_name(self) -> None:

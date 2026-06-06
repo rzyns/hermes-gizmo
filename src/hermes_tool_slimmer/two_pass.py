@@ -89,16 +89,18 @@ def hydrate_tool_schema(base_schema: Schema | None, tools: list[CompactTool]) ->
             "parameters": {"type": "object", "properties": {}},
         }
     function = schema.get("function") if isinstance(schema.get("function"), dict) else None
-    target = function if function is not None else schema
+    target: dict[str, Any] = function if function is not None else schema
     target["description"] = (
         f"{catalog}\n\n"
         "This does not execute tools. It only asks Hermes to expose the requested full schemas "
         "on the next model call. Batch all likely-needed tools together."
     )
-    params = target.get("parameters") if isinstance(target.get("parameters"), dict) else {}
+    raw_params = target.get("parameters")
+    params: dict[str, Any] = raw_params if isinstance(raw_params, dict) else {}
     if not params:
         params = {"type": "object", "properties": {}}
-    properties = params.get("properties") if isinstance(params.get("properties"), dict) else {}
+    raw_properties = params.get("properties")
+    properties: dict[str, Any] = raw_properties if isinstance(raw_properties, dict) else {}
     tools_property: dict[str, Any] = {
         "type": "array",
         "items": {"type": "string", "enum": allowed_names},

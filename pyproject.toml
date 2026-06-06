@@ -15,6 +15,7 @@ include = [
   "/tests",
   "/CHANGELOG.md",
   "/LICENSE",
+  "/NOTICE",
   "/README.md",
   "/SECURITY.md",
   "/plugin.yaml",
@@ -28,11 +29,11 @@ artifacts = [
 [project]
 name = "hermes-tool-slimmer"
 version = "0.6.4"
-description = "Reduce Hermes Agent tool schema overhead with provider-aware tool selection"
+description = "Hermes Agent plugin for deterministic tool-schema selection, diagnostics, and dashboard visibility"
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "Hermes Tool Slimmer contributors" }]
-keywords = ["hermes", "llm", "tools", "mcp", "tool-selection"]
+authors = [{ name = "Hermes Gizmo contributors" }]
+keywords = ["hermes", "gizmo", "llm", "tools", "mcp", "tool-selection"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -55,6 +56,8 @@ dev = [
   "pytest-cov>=5",
   "ruff>=0.4",
   "mypy>=1.10",
+  "build>=1.2",
+  "numpy>=1.26",
   "types-PyYAML>=6.0",
 ]
 semantic = [
@@ -62,9 +65,10 @@ semantic = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/alias8818/hermes-tool-slimmer"
-Repository = "https://github.com/alias8818/hermes-tool-slimmer"
-Issues = "https://github.com/alias8818/hermes-tool-slimmer/issues"
+Homepage = "https://github.com/rzyns/hermes-gizmo"
+Repository = "https://github.com/rzyns/hermes-gizmo"
+Issues = "https://github.com/rzyns/hermes-gizmo/issues"
+Upstream = "https://github.com/alias8818/hermes-tool-slimmer"
 
 [project.entry-points."hermes_agent.plugins"]
 tool-slimmer = "hermes_tool_slimmer"
@@ -99,3 +103,4 @@ include = [
 "dashboard" = "dashboard"
 "dashboard-plugin" = "dashboard-plugin"
 "plugin.yaml" = "plugin.yaml"
+"NOTICE" = "NOTICE"

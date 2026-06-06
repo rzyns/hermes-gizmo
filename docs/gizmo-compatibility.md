@@ -1,12 +1,12 @@
 # Hermes Gizmo Compatibility
 
-**Hermes Gizmo** is a private fork of the `alias8818/hermes-tool-slimmer` repo, managed in a local checkout. This document covers installation, selector hook wiring, and isolated-profile constraints specific to the Hermes Gizmo fork.
+**Hermes Gizmo** is a community fork derived from upstream [`alias8818/hermes-tool-slimmer`](https://github.com/alias8818/hermes-tool-slimmer) under the MIT license. This document covers selector hook wiring, compatibility with legacy `tool-slimmer` names, and isolated-profile constraints for safe testing.
 
 ## What This Document Covers
 
 - Selector hook contract and hooking mechanism
-- Isolated-profile install (no plugin enablement on the default profile)
-- Non-authorizations (what we do NOT do in this fork)
+- Isolated-profile install for first-time testing
+- Public-action boundaries
 - Verifying the selector callback wiring
 - Clean workspace rules
 
@@ -49,11 +49,11 @@ The selector callback is wrapped in try/except by the integration layer. If any 
 
 ### No Core Patching Here
 
-The Hermes Gizmo fork does **not** apply the `docs/hermes-core-selector-hook.patch` at runtime. The patch is provided as an upstreamable artifact only. If the environment's Hermes core already exposes `select_tool_schemas`, the plugin works out-of-the-box. If not, it remains diagnostics-only.
+Hermes Gizmo does **not** apply the `docs/hermes-core-selector-hook.patch` at runtime. The patch is provided as an upstreamable artifact only. If the environment's Hermes core already exposes `select_tool_schemas`, the plugin works out-of-the-box. If not, it remains diagnostics-only.
 
 ## Isolated-Profile Install
 
-Hermes supports per-profile plugin paths and configurations. The Gizmo fork must be installed in a way that does not leak into other profiles.
+Hermes supports per-profile plugin paths and configurations. For first-time testing, install Hermes Gizmo in a way that does not leak into other profiles.
 
 ### Recommended Layout
 
@@ -64,7 +64,7 @@ Hermes supports per-profile plugin paths and configurations. The Gizmo fork must
     tool-slimmer/ -> ../../.../repo/      # symlink or copy
 
 # Source repo (this checkout)
-/home/openclaw/dev/hermes-stuff/plugins/hermes-gizmo
+$HOME/hermes-gizmo
 ```
 
 ### Config for Isolated Profile
@@ -92,7 +92,7 @@ tool_slimmer:
 
 ### Avoid Global Plugin Enablement
 
-Do **not** add `tool-slimmer` to the root profile's `plugins.enabled` list unless that is explicitly intended. The Gizmo fork may have experimental modes (`semantic_hybrid`, progressive tools) that should not affect production profiles.
+Do **not** add `tool-slimmer` to the root profile's `plugins.enabled` list unless that is explicitly intended. Hermes Gizmo has experimental modes (`semantic_hybrid`, progressive tools) that may not fit every production profile.
 
 ### Activation Steps
 
@@ -104,19 +104,19 @@ Do **not** add `tool-slimmer` to the root profile's `plugins.enabled` list unles
    - Plugin is enabled.
    - Core selector hook is available (or note if it is missing).
 
-## Non-Authorizations
+## Public-Action Boundaries
 
-The following actions are **not authorized** for the Gizmo fork without separate approval:
+The following actions are outside this compatibility guide and require separate maintainer approval:
 
 - Submitting an upstream PR to `alias8818/hermes-tool-slimmer`
-- Publishing a public package to PyPI or any package registry
+- Publishing a package to PyPI or any package registry
 - Installing/enabling the plugin on the default Hermes profile
 - Restarting the Hermes gateway in a shared environment
 - Changing provider credentials or API keys
 - Destructive mutation of existing Hermes Gizmo or Hermes core installs
 - Running the generic hidden-tool broker (`--hidden-tool` execution) unless separately approved
 
-Violating any of these may corrupt shared environments or expose experimental changes to other profiles.
+These boundaries keep local testing separate from publication, upstream contribution, and shared-environment operations.
 
 ## Clean Workspace Rules
 
@@ -126,7 +126,7 @@ Every worker run that modifies this repo must:
 2. Commit scoped changes with a meaningful commit message.
 3. Leave the worktree clean (`nothing to commit, working tree clean`).
 4. Not modify files outside the repo unless the task explicitly requires it.
-5. Not delete upstream remote references or alter `.git/config` origin URLs.
+5. Not delete upstream remote references or alter `.git/config` remote URLs without an explicit repo-maintenance task.
 
 ### Verifying Clean Worktree
 
@@ -166,8 +166,5 @@ If you see `semantic_hybrid embedding failed; degrading to keyword` in logs:
 - `docs/hermes-core-integration.md` — full upstream integration notes
 - `docs/hermes-core-selector-hook.patch` — minimal core patch artifact
 - `docs/gizmo-eval-report.md` — benchmark report comparing selector modes
-- `docs/quickstart.md` — quickstart for the fork
+- `docs/quickstart.md` — quickstart for Hermes Gizmo
 - `README.md` — project overview
-
----
-*This document is part of the Hermes Gizmo fork. It is not a public release artifact.*

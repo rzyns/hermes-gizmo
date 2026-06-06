@@ -1,17 +1,35 @@
 # Release checklist
 
-1. Update `pyproject.toml` version.
-2. Update `CHANGELOG.md`.
-3. Run package validation:
+Publication is a separate maintainer-approved action. Do not push tags, publish packages, create releases, or announce a release until the target commit and action are explicitly approved.
+
+1. Reconcile remotes/tags and choose the release version.
+2. Update all version-bearing files consistently:
+   - `pyproject.toml`
+   - `src/hermes_tool_slimmer/__init__.py`
+   - root and dashboard plugin `plugin.yaml` files
+   - dashboard `manifest.json` files
+3. Update `CHANGELOG.md` with user-facing changes and migration notes.
+4. Run package validation:
 
    ```bash
    ruff check .
    mypy src tests
-   python -m compileall -q src tests
+   python -m compileall -q src tests dashboard-plugin/tool-slimmer dashboard-plugin/gizmo
    pytest -q
    python -m build
+   scripts/check-wheel-assets.sh
    ```
 
-4. Validate the Hermes core patch artifact against a clean Hermes checkout.
-5. Confirm `README.md`, `docs/`, and `examples/` match the release behavior.
-6. Tag and publish only after the GitHub repository contains the verified commit.
+5. Smoke-test a temp install without `PYTHONPATH`:
+
+   ```bash
+   python -m venv /tmp/hermes-gizmo-smoke
+   /tmp/hermes-gizmo-smoke/bin/python -m pip install -U pip
+   /tmp/hermes-gizmo-smoke/bin/python -m pip install dist/*.whl
+   /tmp/hermes-gizmo-smoke/bin/hermes-gizmo --help
+   ```
+
+6. Validate the Hermes core patch artifact against a clean Hermes checkout if the patch changed.
+7. Run a pre-publication scan for secrets, private paths, stale URLs, and unexpected binaries.
+8. Confirm `README.md`, `docs/`, `examples/`, `SUPPORT.md`, and `SECURITY.md` match the release behavior.
+9. Push only the intended branch/tag refs. Do not use `git push --all` or `git push --mirror` from a repo containing backup/RC/notes refs.

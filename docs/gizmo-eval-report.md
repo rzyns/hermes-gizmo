@@ -3,7 +3,7 @@
 **Board**: `hermes-gizmo`  
 **Task**: HGZ-11 — integrate packaging / config / docs / eval  
 **Run date**: 2026-05-28  
-**Commit base**: `janusz/hermes-gizmo` @ `b3f2955`
+**Commit base**: `b3f2955`
 
 ## Scope
 
