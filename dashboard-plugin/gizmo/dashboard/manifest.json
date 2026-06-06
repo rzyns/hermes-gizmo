@@ -3,7 +3,7 @@
   "label": "Gizmo",
   "description": "Show Hermes Gizmo selection activity and estimated schema token savings.",
   "icon": "Scissors",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "tab": {
     "path": "/gizmo",
     "position": "after:plugins"

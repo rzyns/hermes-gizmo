@@ -28,7 +28,7 @@ artifacts = [
 
 [project]
 name = "hermes-tool-slimmer"
-version = "0.6.4"
+version = "0.7.0"
 description = "Hermes Agent plugin for deterministic tool-schema selection, diagnostics, and dashboard visibility"
 readme = "README.md"
 license = { text = "MIT" }
