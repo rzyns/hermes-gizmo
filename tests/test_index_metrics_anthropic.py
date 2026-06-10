@@ -1,8 +1,29 @@
+from stat import S_IMODE
+
 from hermes_tool_slimmer.anthropic_tool_search import apply_defer_loading, tool_search_tool
 from hermes_tool_slimmer.config import ToolSlimmerConfig
 from hermes_tool_slimmer.index_store import IndexStore
-from hermes_tool_slimmer.metrics import reduction_metrics, schema_bytes, summarize_decisions
+from hermes_tool_slimmer.metrics import record_decision, reduction_metrics, schema_bytes, summarize_decisions
 from hermes_tool_slimmer.toolsets import schema_origin
+
+
+def test_index_store_rebuild_writes_private_index_file(tmp_path):
+    store = IndexStore(tmp_path)
+
+    store.rebuild([{"name": "read_file", "description": "Read"}])
+
+    assert S_IMODE(store.path.stat().st_mode) == 0o600
+
+
+def test_decision_log_writes_private_log_and_directory(monkeypatch, tmp_path):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+
+    record_decision({"mode": "keyword", "selected": ["read_file"]}, {"session_id": "s1"})
+
+    log_dir = tmp_path / "tool-slimmer"
+    log_path = log_dir / "decisions.jsonl"
+    assert S_IMODE(log_dir.stat().st_mode) == 0o700
+    assert S_IMODE(log_path.stat().st_mode) == 0o600
 
 
 def test_index_rebuilds_on_schema_checksum_change(tmp_path):

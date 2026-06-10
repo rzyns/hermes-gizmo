@@ -292,10 +292,10 @@ def select_tool_schemas_callback(
     **kwargs: Any,
 ) -> list[Schema] | None:
     cfg = config or _load_config_for_hook()
-    cfg = cfg.for_context(platform=platform)
-    if not cfg.enabled:
-        return None
     try:
+        cfg = cfg.for_context(platform=platform)
+        if not cfg.enabled:
+            return None
         started = perf_counter()
         upstream_schema_count = len(schemas)
         recovery_meta_injected: list[str] = []
@@ -491,6 +491,9 @@ def select_tool_schemas_callback(
         metrics["expanded_query_token_count"] = len(result.expanded_query_tokens)
         raw_reduction = metrics["estimated_reduction_percent"]
         reduction_percent = raw_reduction if isinstance(raw_reduction, (int, float)) else 0.0
+        # Two-pass starts with a deliberately compact catalog plus hydration tools;
+        # its first response may trade immediate byte reduction for a follow-up
+        # schema hydration path, so the one-pass reduction floor does not apply.
         if effective_cfg.mode != "two_pass" and reduction_percent < cfg.min_estimated_reduction_percent:
             selected = policy_schemas
             metrics = reduction_metrics(effective_cfg.mode, schemas, selected, result.always_included)

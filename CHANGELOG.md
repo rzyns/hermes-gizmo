@@ -6,13 +6,22 @@
 
 ### Changed
 
+- Clarified that the Python distribution remains `hermes-tool-slimmer` while the canonical public project name moves to Hermes Gizmo during the compatibility window.
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
 
+- Restricted advisor rollback to backups under the Hermes Gizmo backup directory and kept advisor config backups/restores private on disk.
+- Isolated the pytest suite from the operator's real `HERMES_HOME`/`HERMES_CONFIG` so local plugin settings cannot contaminate test results.
+- Kept malformed platform profile overlays inside the selector hook's fail-open path.
+- Wrote decision logs, session-loaded state, and persisted tool indexes with private file permissions.
+
 ### Security
+
+- Hardened dashboard advisor rollback against arbitrary readable-file-to-config overwrite by resolving backup paths and requiring them to remain under the plugin backup directory.
 
 ## 0.7.0 - 2026-06-06
 

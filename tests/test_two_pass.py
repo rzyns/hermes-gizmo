@@ -23,6 +23,24 @@ SCHEMAS = [
 ]
 
 
+def test_select_tool_schemas_fails_open_on_invalid_platform_profile_overlay():
+    cfg = ToolSlimmerConfig(
+        enabled=True,
+        profiles={"discord": {"top_k": -1}},
+    )
+
+    selected = select_tool_schemas_callback(
+        "search the web",
+        [],
+        SCHEMAS,
+        "claude-sonnet",
+        "discord",
+        config=cfg,
+    )
+
+    assert selected is None
+
+
 def test_compact_catalog_is_deterministic_and_excludes_safety_tools():
     cfg = ToolSlimmerConfig.from_mapping({"mode": "two_pass"})
 

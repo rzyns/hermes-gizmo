@@ -13,6 +13,7 @@ from .corpus import build_corpus, tool_description, tool_name, tool_toolset
 from .tokenizer import tokenize
 from .toolsets import is_mcp_schema
 from .tools import _json, _resolve_schemas
+from .private_io import write_private_json
 from .types import Schema
 
 LOG = logging.getLogger(__name__)
@@ -91,7 +92,6 @@ class SessionLoadedState:
         self.evict_expired()
 
     def _save(self) -> None:
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
         # Preserve other sessions when writing
         all_sessions: dict[str, Any] = {}
         if self.state_path.exists():
@@ -121,7 +121,7 @@ class SessionLoadedState:
             "sessions": all_sessions,
             "updated_at": time.time(),
         }
-        self.state_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+        write_private_json(self.state_path, payload, indent=2, sort_keys=True)
 
     def evict_expired(self) -> list[str]:
         """Remove expired entries and save. Returns evicted names."""

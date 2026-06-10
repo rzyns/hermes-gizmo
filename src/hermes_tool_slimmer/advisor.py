@@ -11,6 +11,7 @@ from .config import ToolSlimmerConfig, config_path, hermes_home, load_config
 from .corpus import tool_name
 from .index_store import IndexStore
 from .metrics import summarize_decisions
+from .private_io import ensure_private_dir, write_private_text
 from .types import Schema
 
 BASE_ALWAYS_INCLUDE = ["terminal", "read_file", "write_file", "patch", "search_files"]
@@ -294,7 +295,7 @@ def run_advisor(limit: int = 1000, live_schemas: list[Schema] | None = None) -> 
 
 def backup_dir() -> Path:
     path = hermes_home() / "tool-slimmer" / "backups"
-    path.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(path)
     return path
 
 
@@ -304,8 +305,12 @@ def backup_config(path: str | Path | None = None) -> Path:
     backup = backup_dir() / f"config-{stamp}-{time.time_ns()}.yaml"
     if target.is_file():
         shutil.copy2(target, backup)
+        try:
+            backup.chmod(0o600)
+        except OSError:
+            pass
     else:
-        backup.write_text("# No config file existed before Tool Slimmer advisor apply.\n")
+        write_private_text(backup, "# No config file existed before Tool Slimmer advisor apply.\n")
     return backup
 
 
@@ -342,8 +347,8 @@ def apply_recommended_config(
     data["tool_slimmer"] = payload
     data["gizmo"] = payload
 
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(dump_yaml(data))
+    ensure_private_dir(target.parent)
+    write_private_text(target, dump_yaml(data))
     return {"ok": True, "path": str(target), "backup_path": str(backup), "applied": payload}
 
 
@@ -383,8 +388,8 @@ def apply_tool_preference(
     destination[field] = values
     section["profiles"] = profiles
     data["tool_slimmer"] = section
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(dump_yaml(data))
+    ensure_private_dir(target.parent)
+    write_private_text(target, dump_yaml(data))
     return {"ok": True, "path": str(target), "backup_path": str(backup), "profile": profile, "action": action, "tool": tool}
 
 
@@ -392,7 +397,23 @@ def rollback_config(backup_path: str | Path, *, path: str | Path | None = None) 
     backup = Path(backup_path).expanduser()
     if not backup.is_file():
         return {"ok": False, "error": "backup_not_found", "backup_path": str(backup)}
+    backup_root = backup_dir().resolve()
+    try:
+        resolved_backup = backup.resolve(strict=True)
+    except OSError:
+        return {"ok": False, "error": "backup_not_found", "backup_path": str(backup)}
+    if not resolved_backup.is_relative_to(backup_root):
+        return {
+            "ok": False,
+            "error": "backup_path_outside_backup_dir",
+            "backup_path": str(backup),
+            "backup_dir": str(backup_root),
+        }
     target = Path(path).expanduser() if path else config_path()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(backup, target)
-    return {"ok": True, "path": str(target), "backup_path": str(backup)}
+    ensure_private_dir(target.parent)
+    shutil.copy2(resolved_backup, target)
+    try:
+        target.chmod(0o600)
+    except OSError:
+        pass
+    return {"ok": True, "path": str(target), "backup_path": str(resolved_backup)}

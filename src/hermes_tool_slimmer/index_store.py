@@ -10,6 +10,7 @@ from typing import Any
 from .config import hermes_home
 from .corpus import build_corpus, tool_description, tool_name, tool_toolset
 from .corpus import _schema_parameters
+from .private_io import ensure_private_dir, write_private_json
 from .types import Schema
 
 
@@ -20,7 +21,7 @@ class IndexStore:
 
     def __init__(self, root: Path | str | None = None) -> None:
         root = Path(root or hermes_home() / "tool-slimmer").expanduser()
-        root.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(root)
         self.root = root
         self.path = root / "tool_index.json"
         self.live_schemas_path = root / "live_tool_schemas.json"
@@ -55,7 +56,7 @@ class IndexStore:
         _write_private_json(self.live_schemas_path, payload)
         platform = _safe_snapshot_name(context.get("platform"))
         if platform:
-            self.live_schemas_dir.mkdir(parents=True, exist_ok=True)
+            ensure_private_dir(self.live_schemas_dir)
             _write_private_json(self.live_schemas_dir / f"{platform}.json", payload)
         return payload
 
@@ -156,7 +157,7 @@ class IndexStore:
             "total_tools": len(docs),
             "documents": [{"name": doc.name, "toolset": doc.toolset, "tokens": doc.tokens, "text": doc.text} for doc in docs],
         }
-        self.path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+        write_private_json(self.path, payload, indent=2, sort_keys=True)
         return payload
 
     def ensure(self, schemas: list[Schema]) -> dict[str, Any]:
@@ -183,8 +184,4 @@ def _safe_snapshot_name(value: Any) -> str:
 
 
 def _write_private_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
-    try:
-        path.chmod(0o600)
-    except OSError:
-        pass
+    write_private_json(path, payload, indent=2, sort_keys=True, default=str)

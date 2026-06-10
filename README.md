@@ -49,6 +49,8 @@ Dashboard headline totals count real Hermes session events by default. Probe eve
 
 For first-time testing, use a durable local checkout and start with an isolated Hermes profile. The plugin still supports the legacy `tool-slimmer` package, command, config, state, and dashboard paths for compatibility while the public project name moves to Hermes Gizmo.
 
+**Package name note:** the Python distribution is still named `hermes-tool-slimmer` for compatibility with existing installs, entry points, and Hermes plugin discovery. The canonical public project and repository name is Hermes Gizmo; use the `hermes-gizmo` console command or the legacy `hermes-tool-slimmer` command interchangeably during this compatibility window.
+
 1. Activate the target Hermes profile:
    ```bash
    export HERMES_PROFILE=hermes-gizmo

@@ -6,6 +6,7 @@ from collections import Counter, deque
 from typing import Any, Iterable
 
 from .config import hermes_home
+from .private_io import append_private_line
 from .corpus import tool_name
 from .types import Schema
 
@@ -48,14 +49,12 @@ def decision_log_path() -> str:
 def record_decision(metrics: dict[str, object], context: dict[str, object] | None = None) -> None:
     """Append one selector decision for dashboard/ops visibility."""
     path = hermes_home() / "tool-slimmer" / "decisions.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
     event = {
         "timestamp": time.time(),
         "metrics": metrics,
         "context": context or {},
     }
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, sort_keys=True, default=str, separators=(",", ":")) + "\n")
+    append_private_line(path, json.dumps(event, sort_keys=True, default=str, separators=(",", ":")) + "\n")
 
 
 def read_decisions(limit: int = 200) -> list[dict[str, object]]:

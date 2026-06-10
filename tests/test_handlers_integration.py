@@ -6,6 +6,7 @@ import subprocess
 import sys
 import types
 from pathlib import Path
+from stat import S_IMODE
 
 import pytest
 import yaml
@@ -1239,6 +1240,66 @@ def test_dashboard_advisor_apply_and_rollback(monkeypatch, tmp_path):
     assert preference.json()["profile"] == "telegram"
     assert rolled_back.status_code == 200
     assert rolled_back_config["tool_slimmer"]["top_k"] == 8
+
+
+def test_advisor_config_writes_are_private(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("tool_slimmer:\n  top_k: 8\n")
+    config_path.chmod(0o644)
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+    applied = apply_recommended_config({"enabled": True, "mode": "keyword", "top_k": 6})
+    backup_path = Path(str(applied["backup_path"]))
+
+    assert S_IMODE((tmp_path / "tool-slimmer" / "backups").stat().st_mode) == 0o700
+    assert S_IMODE(backup_path.stat().st_mode) == 0o600
+    assert S_IMODE(config_path.stat().st_mode) == 0o600
+
+
+def test_rollback_config_rejects_backup_outside_backup_dir(monkeypatch, tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("tool_slimmer:\n  top_k: 8\n")
+    outside_backup = tmp_path / "outside.yaml"
+    outside_backup.write_text("tool_slimmer:\n  top_k: 1\n")
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+    result = rollback_config(outside_backup)
+
+    persisted_config = yaml.safe_load(config_path.read_text())
+    assert result["ok"] is False
+    assert result["error"] == "backup_path_outside_backup_dir"
+    assert persisted_config["tool_slimmer"]["top_k"] == 8
+
+
+def test_dashboard_advisor_rollback_rejects_backup_outside_backup_dir(monkeypatch, tmp_path):
+    fastapi = pytest.importorskip("fastapi")
+    testclient = pytest.importorskip("fastapi.testclient")
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("plugins:\n  enabled: []\ntool_slimmer:\n  top_k: 8\n")
+    outside_backup = tmp_path / "outside.yaml"
+    outside_backup.write_text("tool_slimmer:\n  top_k: 1\n")
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("HERMES_CONFIG", str(config_path))
+
+    plugin_path = Path(__file__).resolve().parents[1] / "dashboard-plugin" / "tool-slimmer" / "dashboard" / "plugin_api.py"
+    spec = importlib.util.spec_from_file_location("tool_slimmer_dashboard_plugin_rollback_boundary", plugin_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _patch_dashboard_modules(module, monkeypatch)
+
+    app = fastapi.FastAPI()
+    app.include_router(module.router)
+    with testclient.TestClient(app) as client:
+        rolled_back = client.post("/advisor/rollback", json={"backup_path": str(outside_backup)})
+
+    persisted_config = yaml.safe_load(config_path.read_text())
+    assert rolled_back.status_code == 404
+    assert rolled_back.json()["detail"]["error"] == "backup_path_outside_backup_dir"
+    assert persisted_config["tool_slimmer"]["top_k"] == 8
 
 
 def test_dashboard_status_handles_bad_config(monkeypatch, tmp_path):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from stat import S_IMODE
 from typing import Any, cast
 from tempfile import TemporaryDirectory
 
@@ -37,6 +38,13 @@ class TestSessionLoadedState:
             state = SessionLoadedState(path=Path(td) / "state.json")
             assert state.loaded_names() == []
             assert state.is_loaded("terminal") is False
+
+    def test_state_file_written_private(self) -> None:
+        with TemporaryDirectory() as td:
+            state_path = Path(td) / "state.json"
+            state = SessionLoadedState(path=state_path)
+            state.add("terminal")
+            assert S_IMODE(state_path.stat().st_mode) == 0o600
 
     def test_add_and_check(self) -> None:
         with TemporaryDirectory() as td:
