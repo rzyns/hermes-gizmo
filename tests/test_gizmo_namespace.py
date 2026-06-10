@@ -82,6 +82,6 @@ def test_register_is_idempotent_when_legacy_and_canonical_entrypoints_both_load(
     register(ctx)
     register(ctx)
 
-    assert ctx.register_tool.call_count == 14
+    assert ctx.register_tool.call_count == 24
     assert ctx.register_command.call_count == 2
     assert ctx.register_cli_command.call_count == 2

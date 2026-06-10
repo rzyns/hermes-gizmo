@@ -101,3 +101,74 @@ LOADED_TOOLS_SCHEMA = {
     "description": "List currently session-loaded tools with metadata and expiry.",
     "parameters": {"type": "object", "properties": {}},
 }
+
+SKILL_SEARCH_SCHEMA = {
+    "name": "tool_slimmer_skill_search",
+    "description": "Search resolver-visible Hermes skills by query and return metadata-only ranked results.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Search query to match against skill names, categories, tags, and descriptions.",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of skill metadata results to return.",
+            },
+        },
+        "required": ["query"],
+        "additionalProperties": False,
+    },
+}
+
+SKILL_DETAILS_SCHEMA = {
+    "name": "tool_slimmer_skill_details",
+    "description": "Return metadata for one Hermes skill. Optionally pin or unpin its metadata visibility; does not load SKILL.md instructions.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Skill name or qualified name to inspect.",
+            },
+            "pin_visible": {
+                "type": "boolean",
+                "description": "If true, keep this skill metadata visible in future reduced skill-index views.",
+            },
+            "unpin_visible": {
+                "type": "boolean",
+                "description": "If true, remove this skill metadata from visible skill pins.",
+            },
+        },
+        "required": ["name"],
+        "additionalProperties": False,
+    },
+}
+
+VISIBLE_SKILL_PINS_SCHEMA = {
+    "name": "tool_slimmer_visible_skill_pins",
+    "description": "List skill metadata entries pinned visible for the current session.",
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+
+CLEAR_VISIBLE_SKILL_PINS_SCHEMA = {
+    "name": "tool_slimmer_clear_visible_skill_pins",
+    "description": "Clear skill metadata visibility pins for the current session.",
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+
+REQUEST_FULL_SKILL_INDEX_SCHEMA = {
+    "name": "tool_slimmer_request_full_skill_index",
+    "description": "Request full Hermes skill-index visibility for a future core prompt hook; Phase 1.5 records a diagnostic marker only.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "reason": {
+                "type": "string",
+                "description": "Short explanation of the missing skill or discovery requirement.",
+            }
+        },
+        "additionalProperties": False,
+    },
+}
